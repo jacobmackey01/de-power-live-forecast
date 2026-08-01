@@ -1,0 +1,202 @@
+{
+  "model_version": "v1",
+  "trained_at_utc": "2026-08-01T09:27:38.709676+00:00",
+  "training_rows": 17160,
+  "training_span_utc": [
+    "2024-08-15T22:00:00+00:00",
+    "2026-07-31T21:00:00+00:00"
+  ],
+  "negative_base_rate": 0.06247086247086247,
+  "negative_model_fitted": true,
+  "conformal_offsets": {
+    "80": 7.42938232421875,
+    "50": 3.4815071105957074
+  },
+  "calibration_rows": 3432,
+  "feature_columns": [
+    "wind_cf",
+    "wind_speed_100m",
+    "wind_gust_10m",
+    "solar_radiation",
+    "solar_direct",
+    "cloud_cover",
+    "temperature",
+    "surface_pressure",
+    "wind_cf_ramp",
+    "solar_radiation_ramp",
+    "wind_cf_day_mean",
+    "solar_radiation_day_mean",
+    "temperature_day_mean",
+    "heating_degrees",
+    "cooling_degrees",
+    "price_lag_24",
+    "price_lag_48",
+    "price_lag_72",
+    "price_lag_96",
+    "price_lag_168",
+    "price_lag_336",
+    "price_same_hour_mean_7d",
+    "price_same_hour_std_7d",
+    "price_day_mean_lag_1d",
+    "price_day_range_lag_1d",
+    "wind_actual_mean_pre_cutoff",
+    "solar_actual_mean_pre_cutoff",
+    "load_actual_mean_pre_cutoff",
+    "hour_sin",
+    "hour_cos",
+    "doy_sin",
+    "doy_cos",
+    "day_of_week",
+    "is_weekend",
+    "is_holiday",
+    "is_non_working"
+  ],
+  "quantile_levels": [
+    0.1,
+    0.25,
+    0.5,
+    0.75,
+    0.9
+  ],
+  "anchor_feature": "price_lag_168",
+  "artefact_sha256": {
+    "price": "78216f114f8a0e9fd156f883beb77c725702126218e185a31391dcdcd62733b2",
+    "quantile": "0cbe9e443943c188564d564bbfa72de696f72e6b8510494b73ee4d699302066c",
+    "negative": "d0a2e371858bdce5a5a84ecd81f5fbd76adf21eea307918d66bbf22fc393c2de"
+  },
+  "source_sha256": "b584317db3792c58340fa51d9ac935ea6a2703f85cebeeb4edcd93cc8ce48a26",
+  "hyperparameters": {
+    "price": {
+      "n_estimators": 600,
+      "learning_rate": 0.03,
+      "max_depth": 6,
+      "subsample": 0.8,
+      "colsample_bytree": 0.8,
+      "min_child_weight": 5,
+      "reg_lambda": 1.0,
+      "objective": "reg:absoluteerror",
+      "random_state": 20260801,
+      "n_jobs": 4
+    },
+    "negative": {
+      "n_estimators": 500,
+      "learning_rate": 0.03,
+      "max_depth": 5,
+      "subsample": 0.8,
+      "colsample_bytree": 0.8,
+      "min_child_weight": 10,
+      "reg_lambda": 1.0,
+      "objective": "binary:logistic",
+      "eval_metric": "aucpr",
+      "random_state": 20260801,
+      "n_jobs": 4
+    },
+    "quantile": {
+      "n_estimators": 500,
+      "learning_rate": 0.04,
+      "max_depth": 5,
+      "subsample": 0.8,
+      "colsample_bytree": 0.8,
+      "min_child_weight": 10,
+      "reg_lambda": 1.0,
+      "objective": "reg:quantileerror",
+      "quantile_alpha": [
+        0.1,
+        0.25,
+        0.5,
+        0.75,
+        0.9
+      ],
+      "random_state": 20260801,
+      "n_jobs": 4
+    }
+  },
+  "training_days": 715,
+  "days_skipped": 0,
+  "walk_forward_check": {
+    "folds": [
+      {
+        "test_start": "2026-04-03",
+        "test_end": "2026-05-02",
+        "n_hours": 720,
+        "mae_model": 22.591,
+        "mae_baseline_b1": 48.395,
+        "skill_vs_b1": 0.5332,
+        "coverage_80": 0.7944,
+        "coverage_50": 0.4847,
+        "negative_hours_in_test": 137
+      },
+      {
+        "test_start": "2026-05-03",
+        "test_end": "2026-06-01",
+        "n_hours": 720,
+        "mae_model": 19.885,
+        "mae_baseline_b1": 34.217,
+        "skill_vs_b1": 0.4188,
+        "coverage_80": 0.8056,
+        "coverage_50": 0.4917,
+        "negative_hours_in_test": 63
+      },
+      {
+        "test_start": "2026-06-02",
+        "test_end": "2026-07-01",
+        "n_hours": 720,
+        "mae_model": 20.642,
+        "mae_baseline_b1": 38.42,
+        "skill_vs_b1": 0.4627,
+        "coverage_80": 0.8708,
+        "coverage_50": 0.6028,
+        "negative_hours_in_test": 49
+      },
+      {
+        "test_start": "2026-07-02",
+        "test_end": "2026-07-31",
+        "n_hours": 720,
+        "mae_model": 17.078,
+        "mae_baseline_b1": 35.027,
+        "skill_vs_b1": 0.5124,
+        "coverage_80": 0.8528,
+        "coverage_50": 0.5361,
+        "negative_hours_in_test": 79
+      }
+    ],
+    "pooled_skill_vs_b1": 0.4818,
+    "pooled_coverage_80": 0.8309,
+    "pooled_coverage_50": 0.5288,
+    "note": "Backtest only. Not a pre-registered result and not evidence of edge; it exists to catch a broken model before it goes live."
+  },
+  "provenance": {
+    "smard_fetches": 568,
+    "openmeteo_fetches": 8,
+    "identity_check": {
+      "checked_at_utc": "2026-08-01T09:25:37.371032+00:00",
+      "renewables_identity": {
+        "max_abs_error_mw": 0.010000000009313226,
+        "n_compared": 312,
+        "ok": true
+      },
+      "residual_load_identity": {
+        "max_abs_error_mw": 0.010000000005675247,
+        "n_compared": 312,
+        "ok": true
+      },
+      "all_ok": true
+    },
+    "weather_coverage": {
+      "sites_requested": 8,
+      "sites_returned": 8,
+      "sites_failed": {},
+      "wind_weight_covered": 1.0,
+      "solar_weight_covered": 1.0,
+      "load_weight_covered": 1.0,
+      "n_hours": 17544,
+      "first_hour_utc": "2024-08-01T00:00:00+00:00",
+      "last_hour_utc": "2026-08-01T23:00:00+00:00"
+    },
+    "price_span_utc": [
+      "2024-06-30T22:00:00+00:00",
+      "2026-08-01T21:00:00+00:00"
+    ],
+    "n_prices": 18288
+  }
+}

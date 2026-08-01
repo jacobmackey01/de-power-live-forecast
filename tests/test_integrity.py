@@ -223,6 +223,71 @@ def test_features_do_use_already_auctioned_hours_of_today():
 # ---- sealing ------------------------------------------------------------
 
 
+# ---- conformal calibration ----------------------------------------------
+
+
+def test_conformal_offset_widens_an_overconfident_interval():
+    """Truth consistently outside a too-narrow interval must produce a positive
+    offset, i.e. the interval gets wider."""
+    from de_power_live.model import _conformal_offsets
+
+    n = 500
+    rng = np.random.default_rng(0)
+    truth = rng.normal(0, 10, n)
+    # Interval of +/-1 around zero: far too narrow for sd-10 noise.
+    q = np.column_stack([
+        np.full(n, -1.0), np.full(n, -0.5), np.zeros(n),
+        np.full(n, 0.5), np.full(n, 1.0),
+    ])
+    offsets = _conformal_offsets(q, truth)
+    assert offsets["80"] > 0
+    assert offsets["50"] > 0
+    assert offsets["80"] > offsets["50"], "80% interval needs the larger widening"
+
+
+def test_conformal_offset_narrows_an_overwide_interval():
+    """The score is negative when truth sits comfortably inside, so a needlessly
+    wide interval is tightened rather than left alone."""
+    from de_power_live.model import _conformal_offsets
+
+    n = 500
+    rng = np.random.default_rng(1)
+    truth = rng.normal(0, 1, n)
+    q = np.column_stack([
+        np.full(n, -100.0), np.full(n, -50.0), np.zeros(n),
+        np.full(n, 50.0), np.full(n, 100.0),
+    ])
+    offsets = _conformal_offsets(q, truth)
+    assert offsets["80"] < 0
+    assert offsets["50"] < 0
+
+
+def test_conformal_offset_restores_nominal_coverage():
+    """The point of the exercise: applying the offset to fresh data from the same
+    distribution should land coverage near nominal."""
+    from de_power_live.model import _conformal_offsets
+
+    rng = np.random.default_rng(2)
+    cal_truth = rng.normal(0, 10, 2000)
+    fresh_truth = rng.normal(0, 10, 2000)
+
+    def band(n):
+        return np.column_stack([
+            np.full(n, -4.0), np.full(n, -2.0), np.zeros(n),
+            np.full(n, 2.0), np.full(n, 4.0),
+        ])
+
+    offsets = _conformal_offsets(band(2000), cal_truth)
+    q = band(2000)
+    lo = q[:, 0] - offsets["80"]
+    hi = q[:, 4] + offsets["80"]
+    coverage = float(np.mean((fresh_truth >= lo) & (fresh_truth <= hi)))
+    assert 0.75 <= coverage <= 0.85, f"coverage {coverage:.3f} not near nominal 0.80"
+
+
+# ---- sealing ------------------------------------------------------------
+
+
 def test_seal_refuses_to_overwrite(tmp_path: Path):
     payload = {"delivery_date_local": "2026-08-02", "predictions": []}
     seal(payload, directory=tmp_path)

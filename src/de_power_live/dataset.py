@@ -12,7 +12,9 @@ the two paths being provably the same function.
 
 from __future__ import annotations
 
+import pickle
 from dataclasses import dataclass
+from pathlib import Path
 
 import pandas as pd
 
@@ -109,10 +111,27 @@ def build_training_set(
 def fetch_history(
     years: float = 2.0,
     end_day: pd.Timestamp | None = None,
+    cache: bool = True,
 ) -> tuple[pd.Series, pd.DataFrame, pd.DataFrame, dict]:
-    """Pull the raw history needed for training: prices, weather, actuals."""
+    """Pull the raw history needed for training: prices, weather, actuals.
+
+    Cached to disk by (years, end day). A full pull is several hundred sequential
+    SMARD block requests; re-running it on every model iteration is slow for us
+    and impolite to a free public API. The cache is gitignored - sealed
+    predictions carry input hashes, which is the part that has to be auditable.
+    """
     end = pd.Timestamp(end_day or pd.Timestamp.now(tz=MARKET_TZ).normalize()).tz_localize(None)
     start = end - pd.Timedelta(days=int(365 * years))
+
+    cache_path = (
+        Path(__file__).resolve().parents[2] / "cache" / f"history_{years}y_{end.date()}.pkl"
+    )
+    if cache and cache_path.exists():
+        with cache_path.open("rb") as handle:
+            prices, weather, actuals, provenance = pickle.load(handle)
+        provenance = dict(provenance)
+        provenance["served_from_cache"] = str(cache_path.name)
+        return prices, weather, actuals, provenance
 
     smard = SmardClient()
     # 2 weekly blocks per week of history, plus slack for the lag warm-up.
@@ -165,4 +184,10 @@ def fetch_history(
         "price_span_utc": [prices.index.min().isoformat(), prices.index.max().isoformat()],
         "n_prices": int(len(prices)),
     }
+
+    if cache:
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        with cache_path.open("wb") as handle:
+            pickle.dump((prices, weather, actuals, provenance), handle)
+
     return prices, weather, actuals, provenance

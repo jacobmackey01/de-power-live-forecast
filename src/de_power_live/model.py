@@ -34,6 +34,44 @@ QUANTILES: tuple[float, ...] = (0.1, 0.25, 0.5, 0.75, 0.9)
 
 ANCHOR_FEATURE = "price_lag_168"
 
+# Share of the (chronologically last) training data held out to calibrate the
+# intervals. Never used to fit the quantile model.
+CALIBRATION_FRACTION = 0.2
+
+# Which quantile columns bound each pre-registered interval.
+INTERVAL_COLUMNS = {"80": (0, 4), "50": (1, 3)}
+NOMINAL_COVERAGE = {"80": 0.80, "50": 0.50}
+
+
+def _conformal_offsets(cal_quantiles: np.ndarray, cal_truth: np.ndarray) -> dict[str, float]:
+    """Split-conformal corrections for each pre-registered interval.
+
+    The conformity score is how far outside its own interval the truth fell:
+
+        E_i = max(lo_i - y_i, y_i - hi_i)
+
+    Negative when the truth was comfortably inside, so an over-wide interval is
+    narrowed rather than only ever widened. Taking the
+    ceil((n+1)(1-alpha))/n empirical quantile of E and expanding the interval by
+    it gives marginal coverage of at least 1-alpha under exchangeability.
+
+    Time series are not exchangeable, so this is an approximation rather than the
+    finite-sample guarantee the theory offers. It is still far better founded
+    than widening the intervals by a hand-picked constant until the number looks
+    right, which would be fitting to the very thing being tested.
+    """
+    offsets: dict[str, float] = {}
+    n = len(cal_truth)
+    for name, (lo_col, hi_col) in INTERVAL_COLUMNS.items():
+        lo = cal_quantiles[:, lo_col]
+        hi = cal_quantiles[:, hi_col]
+        scores = np.maximum(lo - cal_truth, cal_truth - hi)
+
+        level = NOMINAL_COVERAGE[name]
+        rank = min(int(np.ceil((n + 1) * level)), n)
+        offsets[name] = float(np.sort(scores)[rank - 1])
+    return offsets
+
 PRICE_PARAMS = dict(
     n_estimators=600,
     learning_rate=0.03,
@@ -102,6 +140,8 @@ class DayAheadModel:
     training_rows: int = 0
     training_span: tuple[str, str] | None = None
     negative_base_rate: float | None = None
+    conformal_offsets: dict[str, float] = field(default_factory=dict)
+    calibration_rows: int = 0
     feature_columns: list[str] = field(default_factory=lambda: list(FEATURE_COLUMNS))
 
     # ---- fit ------------------------------------------------------------
@@ -111,7 +151,34 @@ class DayAheadModel:
 
         residual = target - anchor
         self.price_model = XGBRegressor(**PRICE_PARAMS).fit(matrix, residual)
-        self.quantile_model = XGBRegressor(**QUANTILE_PARAMS).fit(matrix, residual)
+
+        # Quantile model plus conformal calibration. Raw XGBoost quantile
+        # regression fits the conditional quantiles of the *training* sample and
+        # is reliably overconfident out of sample: the first walk-forward check
+        # returned 0.67 coverage at a nominal 0.80 and 0.37 at a nominal 0.50.
+        # Split-conformal (Romano et al., "Conformalized Quantile Regression")
+        # fixes this by measuring how far outside its own interval the model
+        # actually lands on held-out data, then widening by that amount.
+        split = int(len(matrix) * (1 - CALIBRATION_FRACTION))
+        if split < 24 * 30 or len(matrix) - split < 24 * 30:
+            # Too little data to hold out honestly; fit on everything and leave
+            # the intervals uncalibrated rather than calibrate on noise.
+            self.quantile_model = XGBRegressor(**QUANTILE_PARAMS).fit(matrix, residual)
+            self.conformal_offsets = {}
+        else:
+            # Chronological split. A random one would let the calibration set
+            # share days with the fit set through the lag features.
+            fit_x, fit_y = matrix.iloc[:split], residual[:split]
+            cal_x = matrix.iloc[split:]
+            cal_truth = target[split:]
+            cal_anchor = anchor[split:]
+
+            self.quantile_model = XGBRegressor(**QUANTILE_PARAMS).fit(fit_x, fit_y)
+            cal_q = np.sort(
+                self.quantile_model.predict(cal_x) + cal_anchor[:, None], axis=1
+            )
+            self.conformal_offsets = _conformal_offsets(cal_q, cal_truth)
+            self.calibration_rows = int(len(cal_x))
 
         is_negative = (target < 0).astype(int)
         n_pos = int(is_negative.sum())
@@ -183,6 +250,15 @@ class DayAheadModel:
         # standard repair and cannot make calibration worse.
         quantiles = np.sort(quantiles, axis=1)
 
+        # Apply the conformal corrections measured on held-out data.
+        for name, (lo_col, hi_col) in INTERVAL_COLUMNS.items():
+            offset = self.conformal_offsets.get(name)
+            if offset is None:
+                continue
+            quantiles[:, lo_col] -= offset
+            quantiles[:, hi_col] += offset
+        quantiles = np.sort(quantiles, axis=1)
+
         if self.negative_model is None:
             prob = np.full(len(matrix), self.negative_base_rate or 0.0, dtype=float)
         else:
@@ -216,6 +292,8 @@ class DayAheadModel:
             "training_span_utc": self.training_span,
             "negative_base_rate": self.negative_base_rate,
             "negative_model_fitted": self.negative_model is not None,
+            "conformal_offsets": self.conformal_offsets,
+            "calibration_rows": self.calibration_rows,
             "feature_columns": self.feature_columns,
             "quantile_levels": list(QUANTILES),
             "anchor_feature": ANCHOR_FEATURE,
@@ -243,6 +321,8 @@ class DayAheadModel:
         span = manifest.get("training_span_utc")
         model.training_span = tuple(span) if span else None
         model.negative_base_rate = manifest.get("negative_base_rate")
+        model.conformal_offsets = manifest.get("conformal_offsets", {})
+        model.calibration_rows = manifest.get("calibration_rows", 0)
         model.feature_columns = manifest["feature_columns"]
 
         model.price_model = XGBRegressor()

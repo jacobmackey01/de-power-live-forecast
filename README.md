@@ -93,6 +93,38 @@ aborts the run rather than letting a relabelled series reach the model.
 
 ---
 
+## Calibration
+
+Raw XGBoost quantile regression turned out to be badly overconfident: the first
+walk-forward check returned 0.67 empirical coverage at a nominal 0.80, and 0.37
+at a nominal 0.50 — both far outside the ±5pp band call C is judged against.
+
+Rather than widen the intervals by a hand-picked constant until the number
+looked right (which is fitting to the very thing being tested), the fix is
+split-conformal calibration. The last 20% of training data is held out, never
+used to fit the quantile model, and used only to measure how far outside its own
+interval the model actually lands. Expanding by that measured amount gives
+marginal coverage of at least the nominal level under exchangeability:
+
+| Interval | Before | After | Nominal |
+|---|---|---|---|
+| 80% | 0.671 | 0.831 | 0.800 |
+| 50% | 0.371 | 0.529 | 0.500 |
+
+Time series are not exchangeable, so this is an approximation rather than the
+finite-sample guarantee the theory offers. Both now err slightly wide, which is
+the safer direction.
+
+### A reproducibility caveat
+
+Two training runs with identical seeds and inputs produced slightly different
+fold MAEs (pooled skill +0.4665 vs +0.4818). The likely cause is non-deterministic
+float summation across XGBoost's worker threads. This does not affect any claim
+made here: predictions come from the **frozen artefacts**, whose SHA-256 hashes
+are recorded in `models/v1/MANIFEST.json` and in every sealed prediction. Exact
+re-training reproducibility is a separate and weaker property than prediction
+reproducibility, and only the latter is relied on.
+
 ## Integrity mechanisms
 
 - `predictions/` is **write-once**; CI fails the build if an existing file there
