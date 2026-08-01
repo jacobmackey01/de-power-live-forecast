@@ -26,6 +26,14 @@ import numpy as np
 import pandas as pd
 
 API_URL = "https://api.open-meteo.com/v1/forecast"
+
+# The archive of past *forecast* runs - deliberately not the ERA5 reanalysis
+# archive. Training on reanalysis while serving on forecasts is a train/serve
+# skew: the model learns from weather nobody could have known at seal time, so
+# every backtest number flatters itself and the advantage evaporates live. The
+# two products measurably differ (same week at the same site returned mean 25.2
+# vs 22.2 km/h), which is exactly the gap that would leak in.
+HISTORICAL_API_URL = "https://historical-forecast-api.open-meteo.com/v1/forecast"
 USER_AGENT = "de-power-live-forecast/0.1 (+https://github.com/jacobmackey01/de-power-live-forecast)"
 
 HOURLY_VARS = [
@@ -38,6 +46,27 @@ HOURLY_VARS = [
     "cloud_cover",
     "surface_pressure",
 ]
+
+# Requested explicitly, never left to the API default. Open-Meteo returns wind
+# in km/h unless told otherwise; feeding km/h into a power curve calibrated in
+# m/s silently triples the apparent wind and produces a model that is confidently
+# wrong rather than obviously broken. Units are pinned here and re-checked at
+# runtime by assert_plausible_units.
+UNIT_PARAMS = {
+    "wind_speed_unit": "ms",
+    "temperature_unit": "celsius",
+    "precipitation_unit": "mm",
+}
+
+# Plausibility envelopes for a national hourly aggregate, used to catch a silent
+# unit change upstream. Deliberately wide: these are tripwires, not priors.
+UNIT_BOUNDS = {
+    "wind_speed_100m": (0.0, 60.0),  # m/s; >60 at 100m over Germany is not weather
+    "wind_gusts_10m": (0.0, 90.0),  # m/s
+    "temperature_2m": (-40.0, 50.0),  # C
+    "shortwave_radiation": (0.0, 1200.0),  # W/m2
+    "surface_pressure": (850.0, 1100.0),  # hPa
+}
 
 
 @dataclass(frozen=True)
@@ -112,6 +141,54 @@ def turbine_power_curve(wind_speed_ms: np.ndarray) -> np.ndarray:
     return out
 
 
+EXPECTED_UNIT_STRINGS = {
+    "wind_speed_100m": {"m/s", "ms"},
+    "wind_gusts_10m": {"m/s", "ms"},
+    "temperature_2m": {"°C", "C", "celsius"},
+}
+
+
+def assert_declared_units(hourly_units: dict, site_name: str) -> None:
+    """Check the units the API says it returned against what we requested.
+
+    Cheaper and more direct than inferring units from magnitudes, and it catches
+    the case where a default changes upstream without any value looking odd.
+    """
+    for var, allowed in EXPECTED_UNIT_STRINGS.items():
+        declared = hourly_units.get(var)
+        if declared is None:
+            continue
+        if declared.strip() not in allowed:
+            raise WeatherError(
+                f"site {site_name}: {var} returned in {declared!r}, expected one of "
+                f"{sorted(allowed)}. Refusing to continue - a unit change here would "
+                f"silently rescale the power curve."
+            )
+
+
+def assert_plausible_units(frame: pd.DataFrame, site_name: str) -> None:
+    """Range tripwires on the raw series.
+
+    A backstop for the case where the API declares the unit we asked for but the
+    values are inconsistent with it. Bounds are wide enough that only a genuine
+    scale error trips them.
+    """
+    for var, (low, high) in UNIT_BOUNDS.items():
+        if var not in frame.columns:
+            continue
+        values = frame[var].astype(float)
+        if values.notna().sum() == 0:
+            continue
+        worst_low = float(values.min())
+        worst_high = float(values.max())
+        if worst_low < low or worst_high > high:
+            raise WeatherError(
+                f"site {site_name}: {var} spans [{worst_low:.1f}, {worst_high:.1f}], "
+                f"outside the plausible range [{low}, {high}]. This is what a silent "
+                f"unit change looks like; aborting rather than modelling on it."
+            )
+
+
 @dataclass
 class OpenMeteoClient:
     """Fetches forward weather and reduces it to national driver features."""
@@ -160,36 +237,71 @@ class OpenMeteoClient:
                 "hourly": ",".join(HOURLY_VARS),
                 "forecast_days": self.forecast_days,
                 "timezone": "UTC",
+                **UNIT_PARAMS,
             }
         )
         payload = self._get_json(f"{API_URL}?{query}")
+        return self._parse_hourly(payload, site.name)
 
+    def _parse_hourly(self, payload: dict, site_name: str) -> pd.DataFrame:
         hourly = payload.get("hourly")
         if not hourly or "time" not in hourly:
-            raise WeatherError(f"no hourly block for site {site.name}")
+            raise WeatherError(f"no hourly block for site {site_name}")
 
         missing = [v for v in HOURLY_VARS if v not in hourly]
         if missing:
-            raise WeatherError(f"site {site.name} missing variables: {missing}")
+            raise WeatherError(f"site {site_name} missing variables: {missing}")
+
+        assert_declared_units(payload.get("hourly_units", {}), site_name)
 
         index = pd.to_datetime(hourly["time"], utc=True)
         frame = pd.DataFrame({v: hourly[v] for v in HOURLY_VARS}, index=index)
         frame.index.name = "timestamp_utc"
+        assert_plausible_units(frame, site_name)
         return frame
 
-    def national_drivers(self) -> tuple[pd.DataFrame, dict]:
+    def fetch_site_history(self, site: Site, start_date: str, end_date: str) -> pd.DataFrame:
+        """Archived past forecasts for one site, for building training data."""
+        query = urllib.parse.urlencode(
+            {
+                "latitude": site.lat,
+                "longitude": site.lon,
+                "hourly": ",".join(HOURLY_VARS),
+                "start_date": start_date,
+                "end_date": end_date,
+                "timezone": "UTC",
+                **UNIT_PARAMS,
+            }
+        )
+        payload = self._get_json(f"{HISTORICAL_API_URL}?{query}")
+        return self._parse_hourly(payload, f"{site.name}@{start_date}")
+
+    def national_drivers(
+        self, start_date: str | None = None, end_date: str | None = None
+    ) -> tuple[pd.DataFrame, dict]:
         """Capacity-weighted national driver features.
+
+        With no dates, returns the live forward forecast. With dates, returns the
+        archived past forecasts over that range for training.
 
         Returns the feature frame and a coverage report. Weights are renormalised
         over the sites that actually returned data, so a single failed site
         degrades precision rather than silently biasing the national total
         toward whichever regions happened to respond.
         """
+        historical = start_date is not None
+        if historical and end_date is None:
+            raise WeatherError("end_date is required when start_date is given")
+
         per_site: dict[str, pd.DataFrame] = {}
         failures: dict[str, str] = {}
         for site in self.sites:
             try:
-                per_site[site.name] = self.fetch_site(site)
+                per_site[site.name] = (
+                    self.fetch_site_history(site, start_date, end_date)  # type: ignore[arg-type]
+                    if historical
+                    else self.fetch_site(site)
+                )
             except WeatherError as exc:
                 failures[site.name] = str(exc)
 

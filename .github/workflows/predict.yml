@@ -1,0 +1,61 @@
+name: predict
+
+# Seals tomorrow's forecast before the day-ahead gate closes.
+#
+# Timing: the gate is 12:00 Europe/Berlin, which is 10:00 UTC in summer (CEST)
+# and 11:00 UTC in winter (CET). Summer is the binding case. Scheduled Actions
+# can be delayed well past their cron time when the platform is busy, so this
+# runs at 06:00 UTC for roughly four hours of slack against the tighter deadline.
+#
+# predict.py independently refuses to seal after gate closure, so a badly
+# delayed run fails loudly instead of writing a worthless late forecast.
+
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: predict
+  cancel-in-progress: false
+
+jobs:
+  seal:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: python -m pip install --upgrade pip && pip install -e .
+
+      - name: Seal tomorrow's forecast
+        id: seal
+        run: python -m de_power_live.predict
+
+      - name: Record a miss if sealing failed
+        if: failure() && steps.seal.outcome == 'failure'
+        run: |
+          TARGET=$(TZ=Europe/Berlin date -d tomorrow +%Y-%m-%d)
+          python -m de_power_live.score --record-miss "$TARGET" \
+            --reason "predict job failed in run ${{ github.run_id }}"
+
+      - name: Commit
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if [ -z "$(git status --porcelain predictions results)" ]; then
+            echo "nothing to commit"
+            exit 0
+          fi
+          git add predictions results
+          git commit -m "Seal forecast $(TZ=Europe/Berlin date -d tomorrow +%Y-%m-%d)
+
+          Sealed by scheduled run ${{ github.run_id }} before gate closure."
+          git push

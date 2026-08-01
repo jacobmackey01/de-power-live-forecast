@@ -1,0 +1,46 @@
+name: score
+
+# Scores delivery days whose outturn has settled, and appends to results/.
+# Never writes to predictions/ - the integrity workflow would reject it if it did.
+#
+# Runs late enough that the previous delivery day is fully settled, allowing for
+# the 30-hour settle margin in score.py.
+
+on:
+  schedule:
+    - cron: "0 14 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: score
+  cancel-in-progress: false
+
+jobs:
+  score:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: python -m pip install --upgrade pip && pip install -e .
+
+      - name: Score settled predictions
+        run: python -m de_power_live.score
+
+      - name: Commit ledger
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if [ -z "$(git status --porcelain results)" ]; then
+            echo "nothing new to score"
+            exit 0
+          fi
+          git add results
+          git commit -m "Score settled delivery days (run ${{ github.run_id }})"
+          git push
