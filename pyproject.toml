@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "de-power-live-forecast"
+version = "0.1.0"
+description = "Live, pre-committed day-ahead forecasting track record for the DE-LU power market"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Jacob Mackey", email = "jacobmackey01@gmail.com" }]
+
+# Pinned exactly. CI and local runs must agree, and a silent dependency bump
+# mid-window would contaminate a record whose whole value is that the method
+# did not change after the calls were sealed.
+dependencies = [
+    "pandas==3.0.5",
+    "numpy==2.5.1",
+    "scikit-learn==1.9.0",
+    "xgboost==3.3.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest==8.4.2",
+]
+
+[project.scripts]
+de-power-predict = "de_power_live.predict:main"
+de-power-score = "de_power_live.score:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

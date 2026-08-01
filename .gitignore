@@ -1,0 +1,16 @@
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# Cached raw API payloads. Never commit these: the sealed predictions carry
+# SHA-256 hashes of the inputs, which is the part that has to be auditable.
+cache/
+*.parquet
+
+.env
+.DS_Store
