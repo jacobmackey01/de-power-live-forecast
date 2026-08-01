@@ -37,17 +37,93 @@ jobs:
           fi
 
           echo "Comparing $BASE..$HEAD"
-          CHANGED=$(git diff --diff-filter=MD --name-only "$BASE" "$HEAD" -- predictions/ || true)
+          FAILED=0
 
+          # 1. Sealed predictions are write-once.
+          CHANGED=$(git diff --diff-filter=MD --name-only "$BASE" "$HEAD" -- predictions/ || true)
           if [ -n "$CHANGED" ]; then
             echo "::error::Sealed predictions were modified or deleted:"
             echo "$CHANGED"
-            echo ""
             echo "predictions/ is write-once. A sealed forecast may never be edited"
             echo "after the fact - that is the entire basis of this record."
-            exit 1
+            FAILED=1
+          else
+            echo "OK: no sealed prediction was modified or deleted."
           fi
-          echo "OK: no sealed prediction was modified or deleted."
+
+          # The pre-registration and the model-versioning rule both bind "after
+          # the first prediction file exists" (PREREGISTRATION.md sections 4 and
+          # its own header). Enforcing them earlier than the document itself
+          # claims would block legitimate pre-window correction - which is how
+          # the conformal calibration fix and the frozen call B baselines landed.
+          # So checks 2 and 3 activate exactly when the window opens.
+          SEALED=$(git ls-tree -r --name-only "$HEAD" -- predictions/ \
+            | grep -cE 'predictions/[0-9]{4}-[0-9]{2}-[0-9]{2}\.json' || true)
+          echo "Sealed predictions at HEAD: $SEALED"
+
+          # 2. The pre-registration is frozen once the window opens. It defines
+          #    what is being claimed, so editing it after the fact would let the
+          #    claims follow the results.
+          PREREG=$(git diff --diff-filter=MD --name-only "$BASE" "$HEAD" -- PREREGISTRATION.md || true)
+          if [ -n "$PREREG" ]; then
+            if [ "$SEALED" -gt 0 ]; then
+              echo "::error::PREREGISTRATION.md was modified with $SEALED prediction(s) sealed."
+              echo "It is frozen from the first sealed prediction onward."
+              FAILED=1
+            else
+              echo "::warning::PREREGISTRATION.md changed pre-window ($SEALED sealed). Allowed, but review it."
+            fi
+          else
+            echo "OK: PREREGISTRATION.md unchanged."
+          fi
+
+          # 3. Frozen model versions are immutable once the window opens. A changed
+          #    artefact would make the hash recorded in every sealed prediction
+          #    attest to a model that no longer exists.
+          MODELS=$(git diff --diff-filter=MD --name-only "$BASE" "$HEAD" -- models/ || true)
+          if [ -n "$MODELS" ]; then
+            if [ "$SEALED" -gt 0 ]; then
+              echo "::error::Frozen model files were modified or deleted with $SEALED prediction(s) sealed:"
+              echo "$MODELS"
+              echo "A code change takes effect as a NEW model version"
+              echo "(PREREGISTRATION.md section 4), never as an edit to an existing one."
+              FAILED=1
+            else
+              echo "::warning::Model files changed pre-window ($SEALED sealed). Allowed via refreeze."
+              echo "$MODELS"
+            fi
+          else
+            echo "OK: no frozen model file was modified or deleted."
+          fi
+
+          # 4. The ledger is append-only: its previous contents must survive
+          #    unchanged as a prefix of the new file.
+          LEDGER=results/ledger.jsonl
+          if git cat-file -e "$BASE:$LEDGER" 2>/dev/null; then
+            git show "$BASE:$LEDGER" > /tmp/ledger_before
+            if git cat-file -e "$HEAD:$LEDGER" 2>/dev/null; then
+              git show "$HEAD:$LEDGER" > /tmp/ledger_after
+            else
+              echo "::error::$LEDGER was deleted."
+              FAILED=1
+              : > /tmp/ledger_after
+            fi
+            BEFORE_LINES=$(wc -l < /tmp/ledger_before)
+            if [ "$BEFORE_LINES" -gt 0 ]; then
+              if ! head -n "$BEFORE_LINES" /tmp/ledger_after | diff -q - /tmp/ledger_before > /dev/null; then
+                echo "::error::Existing $LEDGER entries changed."
+                echo "The ledger is append-only; scored days are final."
+                diff /tmp/ledger_before <(head -n "$BEFORE_LINES" /tmp/ledger_after) || true
+                FAILED=1
+              else
+                echo "OK: ledger prefix of $BEFORE_LINES entries preserved."
+              fi
+            fi
+          else
+            echo "OK: no prior ledger to compare."
+          fi
+
+          exit $FAILED
 
   tests:
     runs-on: ubuntu-latest

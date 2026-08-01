@@ -38,6 +38,55 @@ ANCHOR_FEATURE = "price_lag_168"
 # intervals. Never used to fit the quantile model.
 CALIBRATION_FRACTION = 0.2
 
+# Call B thresholds from PREREGISTRATION.md section 3: the primary target and
+# the pre-declared fallback used only if the primary is underpowered. Both are
+# fixed in advance; neither may be re-tuned once the window opens.
+CALL_B_THRESHOLDS = {"negative": 0.0, "below_10": 10.0}
+
+
+class ModelIntegrityError(RuntimeError):
+    """Raised when a frozen model on disk does not match its manifest."""
+
+
+def build_climatology(prices: pd.Series, threshold: float) -> dict[str, dict[str, float]]:
+    """P(price < threshold) by (month, hour of day), from training data only.
+
+    This is the call B baseline. It has to be frozen into the manifest now,
+    before the window opens: re-estimating a baseline in November, after the
+    outcomes are known, would reintroduce exactly the degree of freedom the
+    pre-registration exists to remove. Keys are strings so the table survives a
+    JSON round trip unchanged.
+    """
+    local = prices.index.tz_convert("Europe/Berlin")
+    frame = pd.DataFrame(
+        {
+            "month": local.month,
+            "hour": local.hour,
+            "hit": (prices.to_numpy(dtype=float) < threshold).astype(float),
+        }
+    )
+    grouped = frame.groupby(["month", "hour"])["hit"].mean()
+    overall = float(frame["hit"].mean())
+
+    table: dict[str, dict[str, float]] = {}
+    for month in range(1, 13):
+        table[str(month)] = {}
+        for hour in range(24):
+            key = (month, hour)
+            # Months absent from training fall back to the pooled rate rather
+            # than to zero, which would make the baseline trivially beatable.
+            value = float(grouped[key]) if key in grouped.index else overall
+            table[str(month)][str(hour)] = round(value, 6)
+    return table
+
+
+def climatology_probability(
+    table: dict[str, dict[str, float]], timestamp: pd.Timestamp
+) -> float:
+    """Look up the frozen baseline for one hour."""
+    local = pd.Timestamp(timestamp).tz_convert("Europe/Berlin")
+    return float(table[str(local.month)][str(local.hour)])
+
 # Which quantile columns bound each pre-registered interval.
 INTERVAL_COLUMNS = {"80": (0, 4), "50": (1, 3)}
 NOMINAL_COVERAGE = {"80": 0.80, "50": 0.50}
@@ -142,6 +191,7 @@ class DayAheadModel:
     negative_base_rate: float | None = None
     conformal_offsets: dict[str, float] = field(default_factory=dict)
     calibration_rows: int = 0
+    climatology: dict[str, dict[str, dict[str, float]]] = field(default_factory=dict)
     feature_columns: list[str] = field(default_factory=lambda: list(FEATURE_COLUMNS))
 
     # ---- fit ------------------------------------------------------------
@@ -179,6 +229,14 @@ class DayAheadModel:
             )
             self.conformal_offsets = _conformal_offsets(cal_q, cal_truth)
             self.calibration_rows = int(len(cal_x))
+
+        # Freeze the call B baselines from training data only, for both the
+        # primary threshold and the pre-declared fallback.
+        target_series = pd.Series(target, index=matrix.index)
+        self.climatology = {
+            name: build_climatology(target_series, threshold)
+            for name, threshold in CALL_B_THRESHOLDS.items()
+        }
 
         is_negative = (target < 0).astype(int)
         n_pos = int(is_negative.sum())
@@ -294,6 +352,8 @@ class DayAheadModel:
             "negative_model_fitted": self.negative_model is not None,
             "conformal_offsets": self.conformal_offsets,
             "calibration_rows": self.calibration_rows,
+            "call_b_thresholds": CALL_B_THRESHOLDS,
+            "climatology": self.climatology,
             "feature_columns": self.feature_columns,
             "quantile_levels": list(QUANTILES),
             "anchor_feature": ANCHOR_FEATURE,
@@ -311,9 +371,18 @@ class DayAheadModel:
         return manifest
 
     @classmethod
-    def load(cls, directory: Path) -> "DayAheadModel":
+    def load(cls, directory: Path, verify: bool = True) -> "DayAheadModel":
+        """Load a frozen model, verifying it matches its manifest.
+
+        Without this check the manifest is decoration: a swapped or corrupted
+        .ubj would produce predictions under a version label that no longer
+        describes it, and the sealed hash would attest to the wrong thing.
+        """
         directory = Path(directory)
         manifest = json.loads((directory / "MANIFEST.json").read_text(encoding="utf-8"))
+
+        if verify:
+            verify_frozen_model(directory, manifest)
 
         model = cls(version=manifest["model_version"])
         model.trained_at_utc = manifest.get("trained_at_utc")
@@ -323,6 +392,7 @@ class DayAheadModel:
         model.negative_base_rate = manifest.get("negative_base_rate")
         model.conformal_offsets = manifest.get("conformal_offsets", {})
         model.calibration_rows = manifest.get("calibration_rows", 0)
+        model.climatology = manifest.get("climatology", {})
         model.feature_columns = manifest["feature_columns"]
 
         model.price_model = XGBRegressor()
@@ -335,6 +405,63 @@ class DayAheadModel:
             model.negative_model.load_model(str(directory / "negative.ubj"))
 
         return model
+
+
+def verify_frozen_model(directory: Path, manifest: dict) -> dict:
+    """Check a frozen model directory against its manifest.
+
+    Two separate checks with deliberately different severities:
+
+    * **Artefact hashes** must match exactly. A frozen .ubj has no legitimate
+      reason to change, so any mismatch is fatal.
+    * **Source hash** must match the code that produced the manifest. A
+      mismatch means prediction-determining code changed under a version label
+      that no longer describes it. Per PREREGISTRATION.md section 4 that
+      requires a new model version, not a quiet edit - so this is fatal too,
+      with a message that says which route to take.
+    """
+    directory = Path(directory)
+    expected = manifest.get("artefact_sha256") or {}
+    if not expected:
+        raise ModelIntegrityError(
+            f"{directory} has no artefact_sha256 in its manifest; refusing to load "
+            "a model whose contents cannot be verified"
+        )
+
+    mismatches: list[str] = []
+    for name, want in expected.items():
+        path = directory / f"{name}.ubj"
+        if not path.exists():
+            mismatches.append(f"{name}.ubj is missing")
+            continue
+        got = hashlib.sha256(path.read_bytes()).hexdigest()
+        if got != want:
+            mismatches.append(f"{name}.ubj sha256 {got[:16]}... != manifest {want[:16]}...")
+
+    if mismatches:
+        raise ModelIntegrityError(
+            f"frozen model at {directory} does not match its manifest:\n  "
+            + "\n  ".join(mismatches)
+        )
+
+    want_source = manifest.get("source_sha256")
+    got_source = source_hash()
+    if want_source and got_source != want_source:
+        raise ModelIntegrityError(
+            f"prediction-determining source has changed since {manifest['model_version']} "
+            f"was frozen (now {got_source[:16]}..., manifest {want_source[:16]}...).\n"
+            "PREREGISTRATION.md section 4 requires a code change to take effect as a "
+            "NEW model version rather than silently altering an existing one.\n"
+            "Before the window opens (no sealed predictions yet) refresh the manifest "
+            "with: python -m de_power_live.refreeze --version <v>\n"
+            "Once predictions exist, train a new version instead."
+        )
+
+    return {
+        "verified_at_utc": datetime.now(timezone.utc).isoformat(),
+        "artefacts_verified": sorted(expected),
+        "source_sha256": got_source,
+    }
 
 
 def _jsonable(params: dict) -> dict:

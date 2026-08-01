@@ -18,11 +18,12 @@ import numpy as np
 import pandas as pd
 
 from . import MARKET_TZ
-from .model import QUANTILES
+from .model import QUANTILES, climatology_probability
 from .smard import SmardClient
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PREDICTIONS_DIR = REPO_ROOT / "predictions"
+MODELS_DIR = REPO_ROOT / "models"
 RESULTS_DIR = REPO_ROOT / "results"
 LEDGER_PATH = RESULTS_DIR / "ledger.jsonl"
 SUMMARY_PATH = RESULTS_DIR / "SUMMARY.md"
@@ -54,15 +55,56 @@ def pinball_loss(truth: np.ndarray, pred: np.ndarray, level: float) -> float:
     return float(np.mean(np.maximum(level * delta, (level - 1) * delta)))
 
 
+class IncompleteOutturn(RuntimeError):
+    """Raised when a delivery day cannot yet be scored completely.
+
+    Deliberately distinct from a scoring failure: the caller must skip the day
+    and retry later rather than append a partial entry, because an appended day
+    is final and would never be revisited.
+    """
+
+
+def load_climatology(model_version: str) -> tuple[dict, dict]:
+    """Frozen call B baselines for a model version, plus its thresholds."""
+    manifest_path = MODELS_DIR / model_version / "MANIFEST.json"
+    if not manifest_path.exists():
+        raise IncompleteOutturn(f"no manifest for model {model_version}")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+
+    climatology = manifest.get("climatology")
+    if not climatology:
+        raise IncompleteOutturn(
+            f"model {model_version} has no frozen climatology; the call B baseline "
+            "must be fixed before the window, not estimated after it"
+        )
+    return climatology, manifest.get("call_b_thresholds", {})
+
+
 def score_day(payload: dict, prices: pd.Series) -> dict:
-    """Score one sealed prediction against realised prices."""
+    """Score one sealed prediction against realised prices.
+
+    Requires the delivery day to be *completely* settled: every predicted hour
+    must have a realised price, and every hour must have both pre-registered
+    baselines available. A partial day appended to the ledger becomes permanent
+    and silently reduces the sample the record is judged on.
+    """
     rows = payload["predictions"]
     hours = pd.DatetimeIndex([pd.Timestamp(r["hour_utc"]) for r in rows])
 
     truth = prices.reindex(hours).to_numpy(dtype=float)
-    have = ~np.isnan(truth)
-    if have.sum() == 0:
-        raise ValueError("no realised prices for this delivery day")
+    b1 = prices.reindex(hours - pd.Timedelta(hours=168)).to_numpy(dtype=float)
+    b2 = prices.reindex(hours - pd.Timedelta(hours=24)).to_numpy(dtype=float)
+
+    missing_truth = int(np.isnan(truth).sum())
+    missing_b1 = int(np.isnan(b1).sum())
+    missing_b2 = int(np.isnan(b2).sum())
+    if missing_truth or missing_b1 or missing_b2:
+        raise IncompleteOutturn(
+            f"{missing_truth}/{len(hours)} realised prices, {missing_b1} B1 and "
+            f"{missing_b2} B2 baseline values still missing"
+        )
+
+    climatology, thresholds = load_climatology(payload["model_version"])
 
     model_price = np.array([r["call_a_price_eur_mwh"] for r in rows], dtype=float)
     prob_neg = np.array([r["call_b_prob_negative"] for r in rows], dtype=float)
@@ -71,24 +113,35 @@ def score_day(payload: dict, prices: pd.Series) -> dict:
         dtype=float,
     )
 
-    # Pre-registered baselines, read from outturn at scoring time.
-    b1 = prices.reindex(hours - pd.Timedelta(hours=168)).to_numpy(dtype=float)
-    b2 = prices.reindex(hours - pd.Timedelta(hours=24)).to_numpy(dtype=float)
-
-    t = truth[have]
-    m = model_price[have]
-
-    def mae(pred: np.ndarray) -> float | None:
-        p = pred[have]
-        ok = ~np.isnan(p)
-        return float(np.mean(np.abs(p[ok] - t[ok]))) if ok.sum() else None
+    # Every metric below is computed over the identical, complete set of hours,
+    # so the skill ratios compare like with like.
+    t, m = truth, model_price
 
     mae_model = float(np.mean(np.abs(m - t)))
-    mae_b1, mae_b2 = mae(b1), mae(b2)
+    mae_b1 = float(np.mean(np.abs(b1 - t)))
+    mae_b2 = float(np.mean(np.abs(b2 - t)))
 
     is_neg = (t < 0).astype(int)
-    lo80, hi80 = q[have, 0], q[have, 4]
-    lo50, hi50 = q[have, 1], q[have, 3]
+    lo80, hi80 = q[:, 0], q[:, 4]
+    lo50, hi50 = q[:, 1], q[:, 3]
+
+    # Retain, per hour, everything the pre-registered call B tests need: the
+    # model score, the frozen baseline, and the outcome at BOTH declared
+    # thresholds. Without the second outcome the fallback target would be
+    # impossible to evaluate from the ledger at all.
+    call_b_hours = []
+    for i, ts in enumerate(hours):
+        entry = {
+            "hour_utc": ts.isoformat(),
+            "model_score": round(float(prob_neg[i]), 6),
+            "price": round(float(t[i]), 3),
+        }
+        for name, threshold in thresholds.items():
+            entry[f"outcome_{name}"] = int(t[i] < threshold)
+            entry[f"baseline_{name}"] = round(
+                climatology_probability(climatology[name], ts), 6
+            )
+        call_b_hours.append(entry)
 
     return {
         "delivery_date_local": payload["delivery_date_local"],
@@ -99,11 +152,11 @@ def score_day(payload: dict, prices: pd.Series) -> dict:
         "model_version": payload["model_version"],
         "model_source_sha256": payload["model_source_sha256"],
         "n_hours_predicted": len(rows),
-        "n_hours_scored": int(have.sum()),
+        "n_hours_scored": len(hours),
         "call_a": {
             "mae_model": round(mae_model, 4),
-            "mae_baseline_b1_lag168": round(mae_b1, 4) if mae_b1 is not None else None,
-            "mae_baseline_b2_lag24": round(mae_b2, 4) if mae_b2 is not None else None,
+            "mae_baseline_b1_lag168": round(mae_b1, 4),
+            "mae_baseline_b2_lag24": round(mae_b2, 4),
             "skill_vs_b1": round(1 - mae_model / mae_b1, 5) if mae_b1 else None,
             "skill_vs_b2": round(1 - mae_model / mae_b2, 5) if mae_b2 else None,
             "rmse_model": round(float(np.sqrt(np.mean((m - t) ** 2))), 4),
@@ -111,13 +164,14 @@ def score_day(payload: dict, prices: pd.Series) -> dict:
         },
         "call_b": {
             "n_negative_hours": int(is_neg.sum()),
-            "brier": round(float(np.mean((prob_neg[have] - is_neg) ** 2)), 6),
-            "mean_prob": round(float(np.mean(prob_neg[have])), 6),
-            # Retained per hour so pooled PR-AUC can be computed at window close
-            # without ever re-reading the sealed files.
-            "pairs": [
-                [round(float(p), 5), int(a)] for p, a in zip(prob_neg[have], is_neg)
-            ],
+            "n_below_10_hours": int((t < 10.0).sum()),
+            "brier": round(float(np.mean((prob_neg - is_neg) ** 2)), 6),
+            "mean_prob": round(float(np.mean(prob_neg)), 6),
+            "climatology_model_version": payload["model_version"],
+            # Everything the pre-registered tests need at window close, without
+            # ever re-reading the sealed files: model score, frozen baseline and
+            # outcome at both declared thresholds.
+            "hours": call_b_hours,
         },
         "call_c": {
             "coverage_80": round(float(np.mean((t >= lo80) & (t <= hi80))), 5),
@@ -125,7 +179,7 @@ def score_day(payload: dict, prices: pd.Series) -> dict:
             "mean_width_80": round(float(np.mean(hi80 - lo80)), 4),
             "mean_width_50": round(float(np.mean(hi50 - lo50)), 4),
             "pinball": {
-                str(level): round(pinball_loss(t, q[have, i], level), 5)
+                str(level): round(pinball_loss(t, q[:, i], level), 5)
                 for i, level in enumerate(QUANTILES)
             },
         },
@@ -161,6 +215,7 @@ def write_summary(ledger: list[dict]) -> None:
         cov80 = [e["call_c"]["coverage_80"] for e in scored]
         cov50 = [e["call_c"]["coverage_50"] for e in scored]
         neg = sum(e["call_b"]["n_negative_hours"] for e in scored)
+        below10 = sum(e["call_b"].get("n_below_10_hours", 0) for e in scored)
 
         lines += [
             "## Running aggregates",
@@ -171,6 +226,7 @@ def write_summary(ledger: list[dict]) -> None:
             f"| A | mean skill vs B1 | {np.mean(skills):+.4f} |" if skills else "| A | mean skill vs B1 | n/a |",
             f"| B | negative hours observed | {neg} |",
             f"| B | powered (needs 30) | {'yes' if neg >= 30 else 'not yet'} |",
+            f"| B | fallback (<10 EUR/MWh) hours | {below10} |",
             f"| C | empirical 80% coverage | {np.mean(cov80):.3f} (nominal 0.800) |",
             f"| C | empirical 50% coverage | {np.mean(cov50):.3f} (nominal 0.500) |",
             "",
@@ -254,6 +310,11 @@ def main() -> int:
 
         try:
             entry = score_day(payload, prices)
+        except IncompleteOutturn as exc:
+            # Skip without appending. An appended day is final, so a partial
+            # one would permanently shrink the evaluated sample.
+            print(f"{day}: incomplete, will retry ({exc})")
+            continue
         except Exception as exc:  # noqa: BLE001
             print(f"{day}: cannot score ({exc})")
             continue

@@ -92,6 +92,19 @@ report must present all three regardless of outcome.
   case the pre-declared fallback target is hours clearing below
   **10 EUR/MWh**, evaluated identically. Both thresholds are fixed now; neither
   may be re-tuned later.
+- **Baseline, frozen before the window:** the climatology is a 12x24 table of
+  P(price < threshold) by calendar month and local hour, estimated on training
+  data only and stored in `models/<version>/MANIFEST.json`. It is not
+  re-estimated at scoring time. This matters because the table is a much
+  stronger baseline than a single pooled rate: for v1, August 13:00 local
+  carries a 38.3% historical negative rate against 2.1% at 03:00, so the model
+  must beat a baseline that already knows solar crushes midday.
+- **Scoring the fallback target:** the model has a single P(price < 0) head. For
+  the <10 EUR/MWh fallback that score is used as a *ranking* score rather than a
+  calibrated probability. PR-AUC depends only on the ranking and is invariant to
+  monotone transformations, so this is valid for the pre-registered comparison;
+  it would not be valid for Brier score or a reliability curve, which are
+  therefore reported for the primary threshold only.
 
 ### Call C — Interval calibration
 
