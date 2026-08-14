@@ -1,13 +1,13 @@
-# Live day-ahead forecasting track record — DE-LU power
+# Live day-ahead forecasting track record: DE-LU power
 
 A forecast published **before** the day-ahead auction closes, scored **after** it
 settles, with the commit history as the evidence that the two happened in that
 order.
 
-Most forecasting projects are backtests. A backtest is cheap: the outcome is
-already in the file when the method is chosen, and every honest researcher knows
-how much that quietly buys you. This repository is an attempt to give up that
-advantage on purpose.
+Backtests allow model choices to be influenced by outcomes already present in
+the historical data. This repository instead records forecasts prospectively,
+before the outcomes are available, so the commit history establishes the
+sequence.
 
 Every trading day the system:
 
@@ -38,19 +38,19 @@ climatological baselines, not against the market's own expectation. Beating
 same-hour-last-week persistence is a statement about persistence, not about the
 market. No P&L is simulated or implied anywhere in this repository.
 
-A null on all three is a possible outcome and would be reported as such. What
-the project guarantees is the record, not the result.
+A null on all three is a possible outcome and would be reported as such. The
+intended contribution is the prospective record, regardless of the result.
 
 ---
 
 ## The look-ahead trap this design exists to avoid
 
-The obvious way to build this is to feed the model SMARD's published day-ahead
-forecasts for load, wind and solar. That would be wrong, and not obviously so.
+SMARD's published day-ahead forecasts for load, wind, and solar are unavailable
+at the required decision time, so they cannot be used as model inputs.
 
-Probed on 2026-08-01 at 10:38 Europe/Berlin — 82 minutes before the auction
-closed — every SMARD forecast series was populated only through 23:00 of the
-*current* day. Zero of the next day's 24 hours were available:
+A probe on 2026-08-01 at 10:38 Europe/Berlin, 82 minutes before the auction
+closed, found that every SMARD forecast series was populated only through 23:00
+of the *current* day. Zero of the next day's 24 hours were available:
 
 ```
 series                   last populated (Berlin)      D+   tomorrow hrs
@@ -61,15 +61,14 @@ renewables_fc            2026-08-01T23:00:00+02:00    D+0  0/24
 residual_load_fc         2026-08-01T23:00:00+02:00    D+0  0/24
 ```
 
-SMARD publishes D+1 forecasts only *after* the auction has cleared. A model
-consuming them would be reading information published after the event it claims
-to predict — and because the data arrives eventually, a backtest over history
-would look entirely healthy while the live system was quietly cheating.
+SMARD publishes D+1 forecasts only *after* the auction has cleared. Using them
+would introduce look-ahead leakage. Because the data arrives later, a historical
+backtest could conceal that timing error.
 
 So SMARD is used for history, lags and scoring only. Forward drivers come from
 Open-Meteo numerical weather forecasts, which publish a genuine three-day
-horizon. This makes the renewables forecast the model's own work rather than a
-thin wrapper over the TSOs'.
+horizon. The resulting renewables forecast is derived independently rather than
+copied from the TSOs' forecasts.
 
 ---
 
@@ -95,15 +94,14 @@ aborts the run rather than letting a relabelled series reach the model.
 
 ## Calibration
 
-Raw XGBoost quantile regression turned out to be badly overconfident: the first
-walk-forward check returned 0.67 empirical coverage at a nominal 0.80, and 0.37
+Raw XGBoost quantile regression was overconfident: the first walk-forward check
+returned 0.67 empirical coverage at a nominal 0.80, and 0.37
 at a nominal 0.50 — both far outside the ±5pp band call C is judged against.
 
-Rather than widen the intervals by a hand-picked constant until the number
-looked right (which is fitting to the very thing being tested), the fix is
-split-conformal calibration. The last 20% of training data is held out, never
-used to fit the quantile model, and used only to measure how far outside its own
-interval the model actually lands. Expanding by that measured amount gives
+The intervals use split-conformal calibration instead of a fixed widening
+constant selected on the evaluation data. The last 20% of training data is held
+out, never used to fit the quantile model, and used only to measure how far
+outside its own interval the model actually lands. Expanding by that measured amount gives
 marginal coverage of at least the nominal level under exchangeability:
 
 | Interval | Before | After | Nominal |
@@ -113,7 +111,7 @@ marginal coverage of at least the nominal level under exchangeability:
 
 Time series are not exchangeable, so this is an approximation rather than the
 finite-sample guarantee the theory offers. Both now err slightly wide, which is
-the safer direction.
+the more conservative direction.
 
 ### A reproducibility caveat
 
