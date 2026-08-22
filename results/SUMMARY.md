@@ -4,27 +4,28 @@ Descriptive only. The formal assessment against the pre-registered success
 criteria happens once, at the close of the evaluation window on 2026-10-31.
 Reading these numbers and stopping early is precluded by the pre-registration.
 
-*Updated 2026-08-21T14:25:15+00:00*
+*Updated 2026-08-22T14:12:07+00:00*
 
-- Days scored: **17**
+- Days scored: **18**
 - Days missed: **0**
 
 ## Running aggregates
 
 | Call | Metric | Value |
 |---|---|---|
-| A | mean daily MAE | 19.76 EUR/MWh |
-| A | mean skill vs B1 | +0.3362 |
+| A | mean daily MAE | 19.24 EUR/MWh |
+| A | mean skill vs B1 | +0.3571 |
 | B | negative hours observed | 21 |
 | B | powered (needs 30) | not yet |
 | B | fallback (<10 EUR/MWh) hours | 41 |
-| C | empirical 80% coverage | 0.806 (nominal 0.800) |
-| C | empirical 50% coverage | 0.478 (nominal 0.500) |
+| C | empirical 80% coverage | 0.817 (nominal 0.800) |
+| C | empirical 50% coverage | 0.491 (nominal 0.500) |
 
 ## Per-day
 
 | Delivery | Sealed (min before close) | MAE | B1 MAE | Skill | Cov80 | Neg hrs |
 |---|---|---|---|---|---|---|
+| 2026-08-20 | 199 | 10.55 | 36.72 | +0.713 | 1.00 | 0 |
 | 2026-08-19 | 201 | 36.79 | 44.85 | +0.180 | 0.21 | 0 |
 | 2026-08-18 | 189 | 18.75 | 53.55 | +0.650 | 0.79 | 0 |
 | 2026-08-17 | 203 | 29.21 | 58.82 | +0.503 | 0.58 | 0 |
