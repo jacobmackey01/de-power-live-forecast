@@ -569,6 +569,7 @@ def _direct_labels(
     top: float,
     bottom: float,
     label_x: float,
+    percent: bool = False,
 ) -> None:
     actual = [_y_value(points[-1], key, y_max, top, bottom) for _, key, _, _ in series]
     placed = _place_labels(actual, top, bottom)
@@ -577,7 +578,11 @@ def _direct_labels(
             lines.append(
                 _line(xs[-1] + 2, actual_y, label_x - 7, label_y, stroke=color, width=0.8)
             )
-        value = _fmt(points[-1][key], decimals)
+        value = (
+            f"{points[-1][key] * 100:.1f}%"
+            if percent
+            else _fmt(points[-1][key], decimals)
+        )
         lines.append(
             _text(
                 label_x,
@@ -889,7 +894,9 @@ def render_svg(record: TrackRecord) -> str:
             f'<circle cx="{_coord(xs_c[-1])}" cy="{_coord(_y_value(points[-1], key, 1.0, 585, 690))}" '
             f'r="3" fill="{_esc(color)}" />'
         )
-    _direct_labels(lines, points, xs_c, series_c, 1.0, 585, 690, 1008)
+    _direct_labels(
+        lines, points, xs_c, series_c, 1.0, 585, 690, 1008, percent=True
+    )
 
     lines.extend(
         [
