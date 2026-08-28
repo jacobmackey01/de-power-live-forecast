@@ -643,10 +643,13 @@ def _panel_header(
     title: str,
     subtitle: str,
     meta: str,
+    meta_y_offset: float = 0.0,
 ) -> None:
     lines.append(_text(x, y, title, size=15, weight="650"))
     lines.append(_text(x, y + 21, subtitle, fill=MUTED, size=11))
-    lines.append(_text(x + 470, y, meta, fill=MUTED, size=11, anchor="end"))
+    lines.append(
+        _text(x + 470, y + meta_y_offset, meta, fill=MUTED, size=11, anchor="end")
+    )
 
 
 def _nice_a_max(points: list[dict[str, Any]]) -> float:
@@ -787,6 +790,7 @@ def render_svg(record: TrackRecord) -> str:
         "Panel B · Negative-price probability",
         "Cumulative Brier score · lower is better",
         f"{record.scored_hours} evaluated hours · {record.negative_hours} negative{below_text}",
+        meta_y_offset=21,
     )
     lines.append(_text(70, 549, _support_line(record), fill=TEXT, size=11))
     lines.append(
