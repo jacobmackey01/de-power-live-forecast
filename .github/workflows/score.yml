@@ -33,6 +33,10 @@ jobs:
       - name: Score settled predictions
         run: python -m de_power_live.score
 
+      - name: Generate deterministic track-record figure
+        run: python -m de_power_live.track_record
+
+      # This workflow has no push trigger, so the derived SVG commit cannot loop.
       - name: Commit ledger
         run: |
           git config user.name "github-actions[bot]"

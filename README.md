@@ -41,6 +41,12 @@ market. No P&L is simulated or implied anywhere in this repository.
 A null on all three is a possible outcome and would be reported as such. What
 the project guarantees is the record, not the result.
 
+## Current prospective record
+
+[![Prospective DE-LU forecast record showing cumulative price MAE against two baselines, negative-price Brier score and prediction-interval coverage](results/prospective_track_record.svg)](results/README.md)
+
+*Forecasts are sealed before auction close and outcomes are scored after settlement. Metrics use only committed scored rows through the latest scored delivery date; the sample is still accumulating, so no final claim is made before the preregistered gates are reached.*
+
 ---
 
 ## The look-ahead trap this design exists to avoid
