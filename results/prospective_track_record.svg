@@ -44,7 +44,7 @@
 <text x="870" y="324.01" fill="#5e477e" font-family="system-ui, -apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, sans-serif" font-size="12px" font-weight="600">B2 · same-hour previous-day · 25.22</text>
 <text x="70" y="513" fill="#1f2933" font-family="system-ui, -apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, sans-serif" font-size="15px" font-weight="650">Panel B · Negative-price probability</text>
 <text x="70" y="534" fill="#5b6770" font-family="system-ui, -apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, sans-serif" font-size="11px">Cumulative Brier score · lower is better</text>
-<text x="540" y="513" fill="#5b6770" font-family="system-ui, -apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, sans-serif" font-size="11px" text-anchor="end">552 evaluated hours · 31 negative · 54 below EUR 10</text>
+<text x="540" y="534" fill="#5b6770" font-family="system-ui, -apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, sans-serif" font-size="11px" text-anchor="end">552 evaluated hours · 31 negative · 54 below EUR 10</text>
 <text x="70" y="549" fill="#1f2933" font-family="system-ui, -apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, sans-serif" font-size="11px">Support reached: 31 negative-price hours; window open through 31 October 2026.</text>
 <text x="70" y="563" fill="#5b6770" font-family="system-ui, -apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, sans-serif" font-size="10px">Descriptive early sample; no reliable forecasting claim is made before the gates.</text>
 <line x1="104" y1="690" x2="420" y2="690" stroke="#e8e8e4" stroke-width="0.8" />
