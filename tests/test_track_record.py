@@ -18,6 +18,7 @@ from de_power_live.track_record import (
 REPO_ROOT = Path(__file__).resolve().parents[1]
 LEDGER_PATH = REPO_ROOT / "results" / "ledger.jsonl"
 SVG_PATH = REPO_ROOT / "results" / "prospective_track_record.svg"
+PREDICT_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "predict.yml"
 
 
 def _scored(
@@ -260,3 +261,28 @@ def test_committed_figure_matches_the_current_ledger():
     assert SVG_PATH.exists()
     expected = render_svg(load_record(LEDGER_PATH))
     assert SVG_PATH.read_text(encoding="utf-8") == expected
+
+
+def test_predict_workflow_has_truthful_success_and_miss_release_paths():
+    workflow = PREDICT_WORKFLOW_PATH.read_text(encoding="utf-8")
+
+    miss_start = workflow.index("      - name: Record a miss if sealing failed")
+    generate_start = workflow.index(
+        "      - name: Generate track-record figure for a missed forecast"
+    )
+    commit_start = workflow.index("      - name: Commit", generate_start)
+    miss_block = workflow[miss_start:generate_start]
+    generate_block = workflow[generate_start:commit_start]
+    commit_block = workflow[commit_start:]
+
+    assert "id: miss" in miss_block
+    assert "if: failure() && steps.seal.outcome == 'failure'" in miss_block
+    assert "if: steps.miss.outcome == 'success'" in generate_block
+    assert "python -m de_power_live.track_record" in generate_block
+
+    assert 'if [ "${{ steps.seal.outcome }}" = "success" ]; then' in commit_block
+    assert 'git commit -m "Seal forecast ' in commit_block
+    assert 'git commit -m "Record missed forecast ' in commit_block
+    assert "No forecast was sealed before gate closure" in commit_block
+    assert "Sealed by scheduled run" in commit_block
+
