@@ -11,3 +11,7 @@ Aggregates here are descriptive. The formal assessment against the pre-registere
 success criteria happens once, at the end of the evaluation window on
 2026-10-31, and is published on 2026-11-01. Reading the running numbers and
 stopping early is precluded by the pre-registration.
+
+Two historical commits, `a8f62529` and `cb640a4e`, were mislabelled as
+sealed forecasts. Their ledger contents are authoritative: both record
+`MISSED` delivery days, and neither commit is amended.
