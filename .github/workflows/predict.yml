@@ -39,11 +39,16 @@ jobs:
         run: python -m de_power_live.predict
 
       - name: Record a miss if sealing failed
+        id: miss
         if: failure() && steps.seal.outcome == 'failure'
         run: |
           TARGET=$(TZ=Europe/Berlin date -d tomorrow +%Y-%m-%d)
           python -m de_power_live.score --record-miss "$TARGET" \
             --reason "predict job failed in run ${{ github.run_id }}"
+
+      - name: Generate track-record figure for a missed forecast
+        if: steps.miss.outcome == 'success'
+        run: python -m de_power_live.track_record
 
       - name: Commit
         if: always()
@@ -55,7 +60,13 @@ jobs:
             exit 0
           fi
           git add predictions results
-          git commit -m "Seal forecast $(TZ=Europe/Berlin date -d tomorrow +%Y-%m-%d)
+          if [ "${{ steps.seal.outcome }}" = "success" ]; then
+            git commit -m "Seal forecast $(TZ=Europe/Berlin date -d tomorrow +%Y-%m-%d)
 
-          Sealed by scheduled run ${{ github.run_id }} before gate closure."
+            Sealed by scheduled run ${{ github.run_id }} before gate closure."
+          else
+            git commit -m "Record missed forecast $(TZ=Europe/Berlin date -d tomorrow +%Y-%m-%d)
+
+            No forecast was sealed before gate closure; the MISSED ledger record is authoritative."
+          fi
           git push
