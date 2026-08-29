@@ -277,9 +277,11 @@ def test_predict_workflow_has_truthful_success_and_miss_release_paths():
 
     assert "id: miss" in miss_block
     assert "if: failure() && steps.seal.outcome == 'failure'" in miss_block
+    assert "id: figure" in generate_block
     assert "if: steps.miss.outcome == 'success'" in generate_block
     assert "python -m de_power_live.track_record" in generate_block
 
+    assert "if: always() && (steps.seal.outcome == 'success' || steps.figure.outcome == 'success')" in commit_block
     assert 'if [ "${{ steps.seal.outcome }}" = "success" ]; then' in commit_block
     assert 'git commit -m "Seal forecast ' in commit_block
     assert 'git commit -m "Record missed forecast ' in commit_block
