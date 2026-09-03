@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -278,7 +279,11 @@ def test_predict_workflow_has_truthful_success_and_miss_release_paths():
     assert "id: miss" in miss_block
     assert "if: failure() && steps.seal.outcome == 'failure'" in miss_block
     assert "id: figure" in generate_block
-    assert "if: steps.miss.outcome == 'success'" in generate_block
+    # The bug this pins: an "if:" with no status function gets an implicit
+    # success() from Actions, so on the failure path this step - and the Commit
+    # step that keys off its outcome - were silently skipped, and the recorded
+    # miss died with the runner instead of reaching the ledger.
+    assert "if: always() && steps.miss.outcome == 'success'" in generate_block
     assert "python -m de_power_live.track_record" in generate_block
 
     assert (
@@ -291,3 +296,45 @@ def test_predict_workflow_has_truthful_success_and_miss_release_paths():
     assert "No forecast was sealed before gate closure" in commit_block
     assert "Sealed by scheduled run" in commit_block
 
+
+def test_every_failure_path_step_carries_a_status_function():
+    """Steps on the miss path must opt out of the implicit success() gate.
+
+    GitHub Actions ANDs a bare ``if:`` with ``success()``. Once the seal step
+    fails the job is in a failed state, so any later step whose condition omits
+    ``always()``/``failure()`` is skipped - which is precisely how five recorded
+    misses (2026-08-30 to 2026-09-03) were computed on the runner and then
+    thrown away instead of being committed.
+    """
+    workflow = PREDICT_WORKFLOW_PATH.read_text(encoding="utf-8")
+
+    conditions = re.findall(r"^\s+if: (.+)$", workflow, flags=re.MULTILINE)
+    failure_path = [c for c in conditions if "steps.miss" in c or "steps.figure" in c]
+    assert failure_path, "no failure-path conditions found; step names changed?"
+
+    for condition in failure_path:
+        assert any(fn in condition for fn in ("always()", "failure()")), (
+            f"{condition!r} has no status function, so Actions ANDs it with "
+            "success() and skips the step whenever the seal has failed"
+        )
+
+
+def test_predict_is_scheduled_with_real_slack_before_the_gate():
+    """The cron must leave room for Actions queueing delay, and sit off the hour.
+
+    The summer gate is 10:00 UTC. At "0 6" the platform delivered every run
+    between 4h30 and 12h late from 2026-08-27 onward, so four hours of slack on
+    the most contended minute of the hour was not enough.
+    """
+    workflow = PREDICT_WORKFLOW_PATH.read_text(encoding="utf-8")
+
+    match = re.search(r'cron: "(\d+) (\d+) \* \* \*"', workflow)
+    assert match, "predict cron not found or no longer a simple daily schedule"
+    minute, hour = int(match.group(1)), int(match.group(2))
+
+    summer_gate_utc = 10 * 60
+    slack_minutes = summer_gate_utc - (hour * 60 + minute)
+    assert slack_minutes >= 6 * 60, (
+        f"only {slack_minutes} min of slack before the 10:00 UTC summer gate"
+    )
+    assert minute != 0, "on-the-hour crons sit in the most delayed Actions slot"
