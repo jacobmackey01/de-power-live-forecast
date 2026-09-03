@@ -1,0 +1,83 @@
+name: record-miss
+
+# Manual repair path for delivery days that were missed but never reached the
+# ledger, because the predict job computed the MISSED record on the runner and
+# then skipped the commit step (fixed in predict.yml, but the lost days from
+# 2026-08-30 to 2026-09-03 still have to be entered).
+#
+# This workflow can only ever ADD a MISSED row. score.py refuses the record if
+# the day is already in the ledger, and refuses it again if a sealed prediction
+# for that day exists, so it cannot be used to overwrite or to disown a real
+# forecast. It never touches predictions/, and the integrity workflow enforces
+# that the ledger stays append-only regardless.
+#
+# Recording a miss is not backfilling a forecast. PREREGISTRATION.md section 5
+# requires missed days to be written to the ledger and counted against the
+# record; leaving them out is the thing that document forbids.
+
+on:
+  workflow_dispatch:
+    inputs:
+      days:
+        description: "Delivery days to record as MISSED (YYYY-MM-DD, space or comma separated)"
+        required: true
+        type: string
+      reason:
+        description: "Why the day was missed"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ledger-write
+  cancel-in-progress: false
+
+jobs:
+  record:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: python -m pip install --upgrade pip && pip install -e .
+
+      - name: Record each day as MISSED
+        env:
+          DAYS: ${{ inputs.days }}
+          REASON: ${{ inputs.reason }}
+        run: |
+          set -euo pipefail
+          for DAY in $(echo "$DAYS" | tr ',' ' '); do
+            if ! echo "$DAY" | grep -qE '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'; then
+              echo "::error::'$DAY' is not a YYYY-MM-DD delivery day"
+              exit 1
+            fi
+            python -m de_power_live.score --record-miss "$DAY" --reason "$REASON"
+          done
+
+      - name: Regenerate track-record figure
+        run: python -m de_power_live.track_record
+
+      - name: Commit ledger
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if [ -z "$(git status --porcelain results)" ]; then
+            echo "every requested day was already in the ledger; nothing to commit"
+            exit 0
+          fi
+          if [ -n "$(git status --porcelain predictions)" ]; then
+            echo "::error::this workflow must never touch predictions/"
+            exit 1
+          fi
+          git add results
+          git commit -m "Record missed delivery days (run ${{ github.run_id }})
+
+          Entered via the manual record-miss path. No forecast was sealed for
+          these days; the MISSED ledger records are authoritative."
+          git push

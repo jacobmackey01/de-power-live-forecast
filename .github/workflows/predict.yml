@@ -3,16 +3,26 @@ name: predict
 # Seals tomorrow's forecast before the day-ahead gate closes.
 #
 # Timing: the gate is 12:00 Europe/Berlin, which is 10:00 UTC in summer (CEST)
-# and 11:00 UTC in winter (CET). Summer is the binding case. Scheduled Actions
-# can be delayed well past their cron time when the platform is busy, so this
-# runs at 06:00 UTC for roughly four hours of slack against the tighter deadline.
+# and 11:00 UTC in winter (CET). Summer is the binding case.
+#
+# Scheduled Actions are queued, not guaranteed, and on-the-hour crons sit in the
+# most contended slot on the platform. At "0 6" every run from 2026-08-27 onward
+# started between 4h30 and 12h late and so arrived after the gate, which is why
+# the record has a run of missed days. This runs at 03:12 UTC instead: off the
+# hour, and roughly 6h45 of slack against the tighter summer deadline.
+#
+# Sealing earlier costs no forecast quality. PREREGISTRATION.md section 2 bans
+# the SMARD D+1 forecast series outright, so waiting until mid-morning buys no
+# extra information; the only timing constraint the pre-registration imposes is
+# that the seal timestamp falls before 12:00 Europe/Berlin, and every sealed
+# file records its own minutes_before_close, so the change is auditable.
 #
 # predict.py independently refuses to seal after gate closure, so a badly
-# delayed run fails loudly instead of writing a worthless late forecast.
+# delayed run still fails loudly instead of writing a worthless late forecast.
 
 on:
   schedule:
-    - cron: "0 6 * * *"
+    - cron: "12 3 * * *"
   workflow_dispatch:
 
 permissions:
@@ -48,7 +58,7 @@ jobs:
 
       - name: Generate track-record figure for a missed forecast
         id: figure
-        if: steps.miss.outcome == 'success'
+        if: always() && steps.miss.outcome == 'success'
         run: python -m de_power_live.track_record
 
       - name: Commit
