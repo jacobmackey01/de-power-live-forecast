@@ -1,0 +1,138 @@
+name: integrity-audit
+
+# Watches the record after the fact, and only ever reports.
+#
+# integrity.yml guards pushes, but Actions does not raise workflow events for
+# pushes made with GITHUB_TOKEN, so every commit written by score, predict or
+# record-miss lands on main without that guard ever running. This workflow
+# closes that hole: it re-checks the invariants once the writing workflow has
+# finished, and again on a daily schedule in case a run never reported.
+#
+# It is deliberately powerless. contents: read, no persisted credentials, no
+# PAT, and not a single command here writes to the repository. An auditor that
+# repairs what it finds destroys the evidence it exists to preserve, so a
+# discrepancy fails the run and stays on disk for a human to look at.
+
+on:
+  workflow_run:
+    workflows: [predict, score, record-miss]
+    types: [completed]
+  schedule:
+    # Off the hour, and after the day's score run has settled.
+    - cron: "23 22 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: integrity-audit
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    # Only ever audit this repository's own default branch. predict, score and
+    # record-miss have no pull_request trigger, so a fork cannot reach this
+    # today; the guard is here so that stays true if a trigger is ever added.
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.head_repository.full_name == github.repository &&
+       github.event.workflow_run.event != 'pull_request')
+    runs-on: ubuntu-latest
+    steps:
+      # Checks out the default branch by name, never the triggering run's
+      # head_sha, so no code from an untrusted ref is executed here.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Ledger is append-only across the whole history
+        id: history
+        run: |
+          LEDGER=results/ledger.jsonl
+          FAILED=0
+
+          # Every revision of the ledger must contain its predecessor as an
+          # exact line prefix. A scored day is final; a rewritten one is not.
+          PREV=""
+          for REV in $(git rev-list --reverse HEAD -- "$LEDGER"); do
+            if ! git cat-file -e "$REV:$LEDGER" 2>/dev/null; then
+              echo "::error::$LEDGER was deleted in $REV ($(git log -1 --format=%s "$REV"))"
+              FAILED=1
+              continue
+            fi
+            git show "$REV:$LEDGER" > /tmp/ledger_after
+            if [ -n "$PREV" ]; then
+              BEFORE_LINES=$(wc -l < /tmp/ledger_before)
+              if [ "$BEFORE_LINES" -gt 0 ] \
+                && ! head -n "$BEFORE_LINES" /tmp/ledger_after | diff -q - /tmp/ledger_before > /dev/null; then
+                echo "::error::$LEDGER stopped being append-only at $REV ($(git log -1 --format=%s "$REV"))"
+                diff /tmp/ledger_before <(head -n "$BEFORE_LINES" /tmp/ledger_after) || true
+                FAILED=1
+              fi
+            fi
+            cp /tmp/ledger_after /tmp/ledger_before
+            PREV="$REV"
+          done
+          [ "$FAILED" -eq 0 ] && echo "OK: ledger append-only across $(git rev-list --count HEAD -- "$LEDGER") revision(s)."
+
+          # Sealed predictions are write-once, with no pre-window exemption.
+          TAMPERED=$(git log --diff-filter=MD --format='%H %s' --name-only -- predictions/ || true)
+          if [ -n "$TAMPERED" ]; then
+            echo "::error::sealed predictions were modified or deleted somewhere in history:"
+            echo "$TAMPERED"
+            FAILED=1
+          else
+            echo "OK: no sealed prediction has ever been modified or deleted."
+          fi
+
+          exit $FAILED
+
+      - name: Ledger, SUMMARY.md and the figure agree
+        id: content
+        if: always()
+        # Stdlib only, so no dependency resolution stands between the audit and
+        # the answer. Nothing is installed and nothing is regenerated on disk.
+        run: PYTHONPATH=src python -m de_power_live.audit
+
+      # Values reach bash through env, never through ${{ }} interpolation into
+      # the script body, and every format string is single-quoted so a backtick
+      # in a workflow name cannot become command substitution.
+      - name: Report
+        if: always()
+        env:
+          TRIGGER: ${{ github.event_name }}
+          SOURCE_WORKFLOW: ${{ github.event.workflow_run.name }}
+          SOURCE_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          HISTORY: ${{ steps.history.outcome }}
+          CONTENT: ${{ steps.content.outcome }}
+        run: |
+          {
+            printf '## Integrity audit\n\n'
+            if [ "$TRIGGER" = "workflow_run" ]; then
+              printf 'Triggered by `%s` after `%s` concluded `%s`.\n\n' \
+                "$TRIGGER" "$SOURCE_WORKFLOW" "$SOURCE_CONCLUSION"
+            else
+              printf 'Triggered by `%s`.\n\n' "$TRIGGER"
+            fi
+            printf '| Check | Result |\n|---|---|\n'
+            printf '| Ledger append-only, sealed predictions write-once | `%s` |\n' "$HISTORY"
+            printf '| Ledger vs SUMMARY.md vs track-record figure | `%s` |\n' "$CONTENT"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$HISTORY" != "success" ] || [ "$CONTENT" != "success" ]; then
+            {
+              printf '\nDiscrepancies were found and **nothing has been changed**.\n'
+              printf 'Read the annotations on the failed step, then repair through\n'
+              printf 'the normal workflows - never by editing `results/` by hand.\n'
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
+          printf '\nThe published record follows from the ledger.\n' >> "$GITHUB_STEP_SUMMARY"
