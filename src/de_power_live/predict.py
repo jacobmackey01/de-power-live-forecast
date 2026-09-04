@@ -1,8 +1,7 @@
 """Produce and seal one day's forecast.
 
-Refuses to write if the auction has already closed. A prediction sealed after
-gate closure is not a prediction, and quietly writing one anyway would be the
-single most damaging thing this system could do to its own record.
+The command refuses to write after auction gate closure so late output cannot
+enter the prospective record.
 
     python -m de_power_live.predict                 # tomorrow
     python -m de_power_live.predict --dry-run       # print, write nothing
@@ -31,7 +30,7 @@ MODELS_DIR = REPO_ROOT / "models"
 
 
 class SealError(RuntimeError):
-    """Raised when a prediction cannot be honestly sealed."""
+    """Raised when a prediction cannot be sealed under the registered rules."""
 
 
 def auction_close_utc(target_day: pd.Timestamp) -> pd.Timestamp:
