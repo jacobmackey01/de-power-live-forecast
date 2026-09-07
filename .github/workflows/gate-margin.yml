@@ -1,0 +1,59 @@
+name: gate-margin
+
+# An alarm that fires while the margin still exists.
+#
+# The predict job going red is not a warning, it is a bereavement notice: by the
+# time SealError is raised the gate has shut and the delivery day is already a
+# MISSED row. What actually degrades first is minutes_before_close, and it slid
+# for days before the 2026-08-28..09-04 gap without anyone being told.
+#
+# So this reads the newest sealed prediction after every predict run and fails
+# loudly while there is still time to seal by hand with workflow_dispatch, which
+# starts immediately instead of waiting in the scheduled-run queue.
+#
+# Like integrity-audit, it is deliberately powerless: contents: read, no
+# persisted credentials, and it writes nothing. Its only output is its exit
+# code and the notification that follows.
+
+on:
+  workflow_run:
+    workflows: [predict]
+    types: [completed]
+  schedule:
+    # Off the hour, after the day's predict run has had every chance to land.
+    - cron: "47 21 * * *"
+  workflow_dispatch:
+    inputs:
+      warn_minutes:
+        description: "Warn below this many minutes of margin"
+        required: false
+        default: "90"
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gate-margin
+  cancel-in-progress: false
+
+jobs:
+  margin:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # No install. gate_margin.py is standard library only, exactly so this
+      # alarm cannot be silenced by an unrelated dependency failure.
+      - name: Check margin to gate closure
+        env:
+          PYTHONPATH: src
+        run: |
+          python -m de_power_live.gate_margin \
+            --warn-minutes "${{ github.event.inputs.warn_minutes || '90' }}"
