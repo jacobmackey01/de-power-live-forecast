@@ -12,31 +12,27 @@ name: predict
 # queue has already eaten most of it again - the 2026-09-08 seal landed with
 # 103 minutes to spare.
 #
-# Simply moving the cron earlier again does not fix this, and is not free:
+# Simply moving the cron earlier again does not fix this, and is not free. The
+# seal hour is a methodological choice, not just an operational one, and the
+# reasoning is set out in full in docs/seal-timing.md. In short: forward drivers
+# are Open-Meteo NWP whose 00Z run lands around 03:00-04:00 UTC, and the frozen
+# model was fit at SEAL_LOCAL_HOUR, 11:00 Europe/Berlin, so three of its inputs
+# shift as the live seal moves away from that hour.
 #
-#   * Forward drivers are Open-Meteo NWP (PREREGISTRATION.md section 2, which
-#     bans the SMARD D+1 series outright). Unlike SMARD, NWP genuinely does
-#     refresh: the 00Z ICON run lands around 03:00-04:00 UTC. A seal that
-#     executes before then is served an older run for no benefit.
-#   * Training builds every row at SEAL_LOCAL_HOUR, 11:00 Europe/Berlin
-#     (dataset.py). The three *_actual_mean_pre_cutoff features are a 24h window
-#     closing at the cutoff, so the further the live seal drifts from 11:00
-#     local the further those features drift from what the frozen model was fit
-#     on. Price features are unaffected - they are filtered by delivery day, not
-#     timestamp - but the outturn aggregates are not.
-#
-# So the cron moves to 02:12 UTC to get further out of the queue, and the job
-# then waits until a fixed local seal window before it seals. Start time and seal
+# So the cron moves to 02:12 UTC to get clear of the queue, and the job then
+# waits until a fixed local seal window before it seals. Start time and seal
 # time are thereby decoupled: a punctual run sleeps until the window, a run
 # delayed past the window seals immediately, and only a run delayed past the
-# gate misses - which now takes nearly eight hours of queue delay, and yields a
-# 4h30 typical margin instead of the 1h43 the last seal actually had.
+# gate misses - which now takes nearly eight hours of queue delay.
+#
+# This buys reliability, not accuracy. It does not make any forecast better; it
+# makes it likelier that a forecast exists at all. See docs/seal-timing.md.
 #
 # predict.py independently refuses to seal after gate closure, so a badly
 # delayed run still fails loudly instead of writing a worthless late forecast.
 # Nothing here relaxes that guard, and nothing here can seal a second time:
-# seal() is write-once, and the guard step below exits clean if today's file
-# already exists.
+# seal() is write-once, and the guard step below refuses to run over a day that
+# is already sealed or already in the ledger.
 
 on:
   schedule:
@@ -64,8 +60,8 @@ env:
 jobs:
   seal:
     runs-on: ubuntu-latest
-    # Generous enough to cover the wait plus the run itself, and well inside
-    # the 6h job ceiling.
+    # Covers the longest possible wait (winter, punctual start) plus the run
+    # itself, and stays well inside the 6h job ceiling.
     timeout-minutes: 300
     steps:
       - uses: actions/checkout@v4
@@ -76,29 +72,27 @@ jobs:
 
       - run: python -m pip install --upgrade pip && pip install -e .
 
-      # A manual run queued behind a sleeping scheduled run would otherwise wake
-      # up to find the day already sealed and fail on the write-once check. That
-      # is a correct refusal but a misleading red run, so check for it directly.
-      - name: Skip if tomorrow is already handled
+      # Decides whether the day still needs sealing. Crucially it does not infer
+      # a seal from a filename: a truncated, partial or mismatched file is
+      # reported as invalid and fails the run rather than being mistaken for
+      # success, which would exit green with neither a forecast nor a MISSED row
+      # and quietly drop the day out of the record. See seal_guard.py.
+      - name: Check whether tomorrow still needs sealing
         id: guard
         run: |
+          set -o pipefail
           TARGET=$(TZ=Europe/Berlin date -d tomorrow +%Y-%m-%d)
           echo "target=$TARGET" >> "$GITHUB_OUTPUT"
-          if [ -f "predictions/$TARGET.json" ]; then
-            echo "$TARGET is already sealed; nothing to do."
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-          elif grep -q "\"delivery_date_local\": \"$TARGET\"" results/ledger.jsonl 2>/dev/null; then
-            echo "$TARGET is already recorded in the ledger; nothing to do."
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "$TARGET is unsealed; proceeding."
-            echo "skip=false" >> "$GITHUB_OUTPUT"
-          fi
+          python -m de_power_live.seal_guard "$TARGET" \
+            | tee "$RUNNER_TEMP/guard.out"
+          grep -E '^skip=(true|false)$' "$RUNNER_TEMP/guard.out" >> "$GITHUB_OUTPUT"
 
       # The window never crosses local midnight, so the delivery date computed
-      # above still holds after the wait.
+      # above still holds after the wait. Manual runs skip the wait by default,
+      # since dispatch is the emergency path used when the queue has already
+      # eaten the morning; pass skip_wait=false to rehearse the scheduled path.
       - name: Wait for the seal window
-        if: steps.guard.outputs.skip == 'false' && github.event_name == 'schedule'
+        if: steps.guard.outputs.skip == 'false' && github.event.inputs.skip_wait != 'true'
         run: |
           WINDOW=$(TZ=Europe/Berlin date -d "today $SEAL_WINDOW_LOCAL" +%s)
           NOW=$(date +%s)
