@@ -15,6 +15,9 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
+from de_power_live import seal_guard
 from de_power_live.seal_guard import (
     ABSENT,
     INVALID,
@@ -231,3 +234,91 @@ def test_a_malformed_ledger_line_does_not_stop_the_check(tmp_path: Path):
         encoding="utf-8",
     )
     assert recorded_in_ledger(TARGET, ledger)
+
+
+# ---- The verdict the workflow parses ------------------------------------
+#
+# predict.yml greps stdout for the verdict and feeds it to GITHUB_OUTPUT. These
+# pin this side of that contract; test_predict_schedule.py pins the other.
+
+
+def _run(tmp_path: Path, monkeypatch, capsys, ledger_rows: list[dict] | None = None):
+    ledger = tmp_path / "ledger.jsonl"
+    if ledger_rows is not None:
+        ledger.write_text(
+            "".join(json.dumps(row) + "\n" for row in ledger_rows), encoding="utf-8"
+        )
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "seal_guard",
+            TARGET,
+            "--predictions-dir",
+            str(tmp_path),
+            "--ledger",
+            str(ledger),
+        ],
+    )
+    code = seal_guard.main()
+    return code, capsys.readouterr()
+
+
+def test_main_emits_skip_false_when_the_day_is_open(tmp_path, monkeypatch, capsys):
+    code, output = _run(tmp_path, monkeypatch, capsys)
+    assert code == 0
+    assert "skip=false" in output.out.splitlines()
+
+
+def test_main_emits_skip_true_for_a_valid_seal(tmp_path, monkeypatch, capsys):
+    _write(tmp_path, f"{TARGET}.json", _valid_payload())
+    code, output = _run(tmp_path, monkeypatch, capsys)
+    assert code == 0
+    assert "skip=true" in output.out.splitlines()
+
+
+def test_main_emits_skip_true_when_the_ledger_already_has_the_day(
+    tmp_path, monkeypatch, capsys
+):
+    code, output = _run(
+        tmp_path,
+        monkeypatch,
+        capsys,
+        ledger_rows=[{"delivery_date_local": TARGET, "status": "MISSED"}],
+    )
+    assert code == 0
+    assert "skip=true" in output.out.splitlines()
+
+
+def test_main_fails_and_emits_no_verdict_for_a_broken_file(tmp_path, monkeypatch, capsys):
+    """The load-bearing case.
+
+    A verdict on stdout here would be caught by the workflow's grep and turned
+    into a skip, which is the silent-drop failure this module exists to prevent.
+    The run must fail with nothing for the grep to find.
+    """
+    _write(tmp_path, f"{TARGET}.json", _valid_payload(delivery="2026-01-01"))
+    code, output = _run(tmp_path, monkeypatch, capsys)
+    assert code == 1
+    assert "skip=" not in output.out
+    assert "2026-01-01" in output.err
+
+
+def test_invalid_beats_a_ledger_row(tmp_path, monkeypatch, capsys):
+    """A broken file must surface even when the day is otherwise accounted for."""
+    _write(tmp_path, f"{TARGET}.json", "")
+    code, _ = _run(
+        tmp_path,
+        monkeypatch,
+        capsys,
+        ledger_rows=[{"delivery_date_local": TARGET, "status": "MISSED"}],
+    )
+    assert code == 1
+
+
+@pytest.mark.parametrize("verdict", ["skip=true", "skip=false"])
+def test_the_verdict_is_on_a_line_of_its_own(verdict, tmp_path, monkeypatch, capsys):
+    """The workflow anchors its grep with ^ and $."""
+    if verdict == "skip=true":
+        _write(tmp_path, f"{TARGET}.json", _valid_payload())
+    _, output = _run(tmp_path, monkeypatch, capsys)
+    assert verdict in output.out.splitlines()

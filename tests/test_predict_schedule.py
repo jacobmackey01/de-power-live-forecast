@@ -207,8 +207,26 @@ def test_predict_is_invoked_without_a_date_override():
     assert "--date" not in workflow
 
 
-def test_the_gate_guard_is_still_reachable():
-    """A skip guard that swallowed every case would silently stop sealing."""
+def test_the_workflow_reads_the_verdict_the_guard_actually_emits():
+    """A contract test across the YAML/Python boundary.
+
+    The workflow greps seal_guard's stdout for the verdict and feeds it to
+    GITHUB_OUTPUT. Nothing else checks that the pattern it greps for still
+    matches what the module prints, and a silent mismatch here would leave
+    steps.guard.outputs.skip empty - which is neither 'true' nor 'false', so
+    every downstream step would skip and the job would go green having done
+    nothing at all.
+    """
     workflow = _workflow()
-    assert "skip=false" in workflow
+    pattern = re.search(r"grep -E '([^']+)'", workflow)
+    assert pattern, "the guard step no longer greps a verdict out of seal_guard"
+    verdict = re.compile(pattern.group(1).strip("^$"))
+    assert verdict.fullmatch("skip=true")
+    assert verdict.fullmatch("skip=false")
+    assert not verdict.fullmatch("skip=maybe")
+
+
+def test_the_proceed_case_is_still_reachable():
+    """A guard that could never say 'proceed' would silently stop sealing."""
+    workflow = _workflow()
     assert "steps.guard.outputs.skip == 'false'" in workflow
