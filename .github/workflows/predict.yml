@@ -5,25 +5,49 @@ name: predict
 # Timing: the gate is 12:00 Europe/Berlin, which is 10:00 UTC in summer (CEST)
 # and 11:00 UTC in winter (CET). Summer is the binding case.
 #
-# Scheduled Actions are queued, not guaranteed, and on-the-hour crons sit in the
-# most contended slot on the platform. At "0 6" every run from 2026-08-27 onward
-# started between 4h30 and 12h late and so arrived after the gate, which is why
-# the record has a run of missed days. This runs at 03:12 UTC instead: off the
-# hour, and roughly 6h45 of slack against the tighter summer deadline.
+# Scheduled Actions are queued, not guaranteed, and the delay on this repository
+# has been growing all window: roughly 1h through early August, 4h30 to 12h over
+# 2026-08-27..09-03 (which is why the record has a run of missed days), and a
+# steady 4h26 to 5h03 since. Moving the cron to "12 3" bought slack, but the
+# queue has already eaten most of it again - the 2026-09-08 seal landed with
+# 103 minutes to spare.
 #
-# Sealing earlier costs no forecast quality. PREREGISTRATION.md section 2 bans
-# the SMARD D+1 forecast series outright, so waiting until mid-morning buys no
-# extra information; the only timing constraint the pre-registration imposes is
-# that the seal timestamp falls before 12:00 Europe/Berlin, and every sealed
-# file records its own minutes_before_close, so the change is auditable.
+# Simply moving the cron earlier again does not fix this, and is not free:
+#
+#   * Forward drivers are Open-Meteo NWP (PREREGISTRATION.md section 2, which
+#     bans the SMARD D+1 series outright). Unlike SMARD, NWP genuinely does
+#     refresh: the 00Z ICON run lands around 03:00-04:00 UTC. A seal that
+#     executes before then is served an older run for no benefit.
+#   * Training builds every row at SEAL_LOCAL_HOUR, 11:00 Europe/Berlin
+#     (dataset.py). The three *_actual_mean_pre_cutoff features are a 24h window
+#     closing at the cutoff, so the further the live seal drifts from 11:00
+#     local the further those features drift from what the frozen model was fit
+#     on. Price features are unaffected - they are filtered by delivery day, not
+#     timestamp - but the outturn aggregates are not.
+#
+# So the cron moves to 02:12 UTC to get further out of the queue, and the job
+# then waits until a fixed local seal window before it seals. Start time and seal
+# time are thereby decoupled: a punctual run sleeps until the window, a run
+# delayed past the window seals immediately, and only a run delayed past the
+# gate misses - which now takes nearly eight hours of queue delay, and yields a
+# 4h30 typical margin instead of the 1h43 the last seal actually had.
 #
 # predict.py independently refuses to seal after gate closure, so a badly
 # delayed run still fails loudly instead of writing a worthless late forecast.
+# Nothing here relaxes that guard, and nothing here can seal a second time:
+# seal() is write-once, and the guard step below exits clean if today's file
+# already exists.
 
 on:
   schedule:
-    - cron: "12 3 * * *"
+    - cron: "12 2 * * *"
   workflow_dispatch:
+    inputs:
+      skip_wait:
+        description: "Seal immediately instead of waiting for the seal window"
+        required: false
+        default: true
+        type: boolean
 
 permissions:
   contents: write
@@ -32,9 +56,17 @@ concurrency:
   group: predict
   cancel-in-progress: false
 
+env:
+  # Anchored in local market time so it holds its distance from both the gate
+  # and the training cutoff across the October DST change.
+  SEAL_WINDOW_LOCAL: "07:30"
+
 jobs:
   seal:
     runs-on: ubuntu-latest
+    # Generous enough to cover the wait plus the run itself, and well inside
+    # the 6h job ceiling.
+    timeout-minutes: 300
     steps:
       - uses: actions/checkout@v4
 
@@ -44,8 +76,43 @@ jobs:
 
       - run: python -m pip install --upgrade pip && pip install -e .
 
+      # A manual run queued behind a sleeping scheduled run would otherwise wake
+      # up to find the day already sealed and fail on the write-once check. That
+      # is a correct refusal but a misleading red run, so check for it directly.
+      - name: Skip if tomorrow is already handled
+        id: guard
+        run: |
+          TARGET=$(TZ=Europe/Berlin date -d tomorrow +%Y-%m-%d)
+          echo "target=$TARGET" >> "$GITHUB_OUTPUT"
+          if [ -f "predictions/$TARGET.json" ]; then
+            echo "$TARGET is already sealed; nothing to do."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          elif grep -q "\"delivery_date_local\": \"$TARGET\"" results/ledger.jsonl 2>/dev/null; then
+            echo "$TARGET is already recorded in the ledger; nothing to do."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "$TARGET is unsealed; proceeding."
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # The window never crosses local midnight, so the delivery date computed
+      # above still holds after the wait.
+      - name: Wait for the seal window
+        if: steps.guard.outputs.skip == 'false' && github.event_name == 'schedule'
+        run: |
+          WINDOW=$(TZ=Europe/Berlin date -d "today $SEAL_WINDOW_LOCAL" +%s)
+          NOW=$(date +%s)
+          WAIT=$(( WINDOW - NOW ))
+          if [ "$WAIT" -le 0 ]; then
+            echo "Already past $SEAL_WINDOW_LOCAL Europe/Berlin; sealing now."
+            exit 0
+          fi
+          echo "Sleeping ${WAIT}s until $SEAL_WINDOW_LOCAL Europe/Berlin."
+          sleep "$WAIT"
+
       - name: Seal tomorrow's forecast
         id: seal
+        if: steps.guard.outputs.skip == 'false'
         run: python -m de_power_live.predict
 
       - name: Record a miss if sealing failed
