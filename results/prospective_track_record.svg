@@ -1,16 +1,16 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 860" role="img" aria-labelledby="svg-title svg-desc">
 <title id="svg-title">Prospective DE-LU forecast track record</title>
-<desc id="svg-desc">Source-derived prospective record from 3 August 2026 to 6 September 2026, with 27 scored delivery days and 648 scored hours. The sample is still accumulating.</desc>
+<desc id="svg-desc">Source-derived prospective record from 3 August 2026 to 7 September 2026, with 28 scored delivery days and 672 scored hours. The sample is still accumulating.</desc>
 <rect x="0" y="0" width="1200" height="860" fill="#fffdf9" stroke="#fffdf9" stroke-width="0" />
 <text x="48" y="44" fill="#1f2933" font-family="system-ui, -apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, sans-serif" font-size="25px" font-weight="650">Prospective DE-LU forecast track record</text>
 <text x="48" y="70" fill="#5b6770" font-family="system-ui, -apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, sans-serif" font-size="13px">Sealed before auction close · scored after settlement</text>
-<text x="48" y="96" fill="#1f2933" font-family="system-ui, -apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, sans-serif" font-size="12px" font-weight="550">Early prospective record · 27 scored days · 648 hours · through 6 September 2026 · 8 missed days</text>
+<text x="48" y="96" fill="#1f2933" font-family="system-ui, -apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, sans-serif" font-size="12px" font-weight="550">Early prospective record · 28 scored days · 672 hours · through 7 September 2026 · 8 missed days</text>
 <rect x="48" y="126" width="1104" height="326" fill="#fffdf9" stroke="#d8d9d6" stroke-width="1" />
 <rect x="48" y="482" width="535" height="298" fill="#fffdf9" stroke="#d8d9d6" stroke-width="1" />
 <rect x="617" y="482" width="535" height="298" fill="#fffdf9" stroke="#d8d9d6" stroke-width="1" />
 <text x="70" y="157" fill="#1f2933" font-family="system-ui, -apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, sans-serif" font-size="15px" font-weight="650">Panel A · Price forecast error</text>
 <text x="70" y="178" fill="#5b6770" font-family="system-ui, -apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, sans-serif" font-size="11px">Cumulative hourly MAE · lower is better</text>
-<text x="540" y="157" fill="#5b6770" font-family="system-ui, -apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, sans-serif" font-size="11px" text-anchor="end">27 scored days · 648 scored hours</text>
+<text x="540" y="157" fill="#5b6770" font-family="system-ui, -apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, sans-serif" font-size="11px" text-anchor="end">28 scored days · 672 scored hours</text>
 <text x="70" y="196" fill="#5b6770" font-family="system-ui, -apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, sans-serif" font-size="11px">B1: same hour, seven days prior (D-7 persistence) · B2: same hour, one day prior (D-1 persistence)</text>
 <line x1="112" y1="394" x2="850" y2="394" stroke="#e8e8e4" stroke-width="0.8" />
 <text x="100" y="398" fill="#5b6770" font-family="system-ui, -apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, sans-serif" font-size="11px" text-anchor="end">0</text>
@@ -26,25 +26,25 @@
 <line x1="112" y1="394" x2="850" y2="394" stroke="#d8d9d6" stroke-width="1" />
 <line x1="112" y1="394" x2="112" y2="398" stroke="#d8d9d6" stroke-width="1" />
 <text x="112" y="416" fill="#5b6770" font-family="system-ui, -apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, sans-serif" font-size="11px" text-anchor="middle">3 Aug</text>
-<line x1="481" y1="394" x2="481" y2="398" stroke="#d8d9d6" stroke-width="1" />
-<text x="481" y="416" fill="#5b6770" font-family="system-ui, -apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, sans-serif" font-size="11px" text-anchor="middle">16 Aug</text>
+<line x1="467.33" y1="394" x2="467.33" y2="398" stroke="#d8d9d6" stroke-width="1" />
+<text x="467.33" y="416" fill="#5b6770" font-family="system-ui, -apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, sans-serif" font-size="11px" text-anchor="middle">16 Aug</text>
 <line x1="850" y1="394" x2="850" y2="398" stroke="#d8d9d6" stroke-width="1" />
-<text x="850" y="416" fill="#5b6770" font-family="system-ui, -apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, sans-serif" font-size="11px" text-anchor="middle">6 Sep</text>
+<text x="850" y="416" fill="#5b6770" font-family="system-ui, -apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, sans-serif" font-size="11px" text-anchor="middle">7 Sep</text>
 <text x="481" y="442" fill="#5b6770" font-family="system-ui, -apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, sans-serif" font-size="11px" text-anchor="middle">scored delivery date</text>
 <text x="50" y="306" fill="#5b6770" font-family="system-ui, -apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, sans-serif" font-size="11px" text-anchor="middle" transform="rotate(-90 50 306)">cumulative MAE (EUR/MWh)</text>
-<path d="M 112 323.48 L 140.38 334.47 L 168.77 332.21 L 197.15 340.1 L 225.54 340.03 L 253.92 337.17 L 282.31 340.19 L 310.69 342.52 L 339.08 342.04 L 367.46 340.63 L 395.85 337.87 L 424.23 339.36 L 452.62 342.21 L 481 341.39 L 509.38 339.18 L 537.77 339.17 L 566.15 336.05 L 594.54 337.55 L 622.92 336.46 L 651.31 337.24 L 679.69 336.63 L 708.08 335.33 L 736.46 335.35 L 764.85 334.33 L 793.23 334.2 L 821.62 335.64 L 850 334.2" fill="none" stroke="#0b5563" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
-<circle cx="850" cy="334.2" r="3" fill="#0b5563" />
-<path d="M 112 244.18 L 140.38 266.96 L 168.77 291.64 L 197.15 298.47 L 225.54 301.9 L 253.92 307 L 282.31 314.41 L 310.69 319.24 L 339.08 314.7 L 367.46 314.22 L 395.85 308.36 L 424.23 310.78 L 452.62 312.44 L 481 309.13 L 509.38 303.29 L 537.77 299.14 L 566.15 296.98 L 594.54 296.39 L 622.92 295.09 L 651.31 297.28 L 679.69 294.55 L 708.08 294.2 L 736.46 295.49 L 764.85 297.88 L 793.23 298.9 L 821.62 297.57 L 850 297.67" fill="none" stroke="#9a4f00" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
-<circle cx="850" cy="297.67" r="3" fill="#9a4f00" />
-<path d="M 112 293.36 L 140.38 311.86 L 168.77 298.34 L 197.15 313.37 L 225.54 313.29 L 253.92 312.7 L 282.31 320.24 L 310.69 319.54 L 339.08 323.37 L 367.46 322.22 L 395.85 325.74 L 424.23 327.83 L 452.62 327.27 L 481 328.24 L 509.38 324.69 L 537.77 326.62 L 566.15 329.95 L 594.54 330.5 L 622.92 330.47 L 651.31 323.54 L 679.69 322.77 L 708.08 318.2 L 736.46 320.01 L 764.85 321.35 L 793.23 320.95 L 821.62 318.38 L 850 314.08" fill="none" stroke="#5e477e" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
-<circle cx="850" cy="314.08" r="3" fill="#5e477e" />
-<text x="870" y="338.2" fill="#0b5563" font-family="system-ui, -apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, sans-serif" font-size="12px" font-weight="600">Model (v1) · 20.39</text>
-<text x="870" y="301.67" fill="#9a4f00" font-family="system-ui, -apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, sans-serif" font-size="12px" font-weight="600">B1 · same-hour 7-day · 32.84</text>
-<line x1="852" y1="314.08" x2="863" y2="315.67" stroke="#5e477e" stroke-width="0.8" />
-<text x="870" y="319.67" fill="#5e477e" font-family="system-ui, -apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, sans-serif" font-size="12px" font-weight="600">B2 · same-hour previous-day · 27.25</text>
+<path d="M 112 323.48 L 139.33 334.47 L 166.67 332.21 L 194 340.1 L 221.33 340.03 L 248.67 337.17 L 276 340.19 L 303.33 342.52 L 330.67 342.04 L 358 340.63 L 385.33 337.87 L 412.67 339.36 L 440 342.21 L 467.33 341.39 L 494.67 339.18 L 522 339.17 L 549.33 336.05 L 576.67 337.55 L 604 336.46 L 631.33 337.24 L 658.67 336.63 L 686 335.33 L 713.33 335.35 L 740.67 334.33 L 768 334.2 L 795.33 335.64 L 822.67 334.2 L 850 332.2" fill="none" stroke="#0b5563" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
+<circle cx="850" cy="332.2" r="3" fill="#0b5563" />
+<path d="M 112 244.18 L 139.33 266.96 L 166.67 291.64 L 194 298.47 L 221.33 301.9 L 248.67 307 L 276 314.41 L 303.33 319.24 L 330.67 314.7 L 358 314.22 L 385.33 308.36 L 412.67 310.78 L 440 312.44 L 467.33 309.13 L 494.67 303.29 L 522 299.14 L 549.33 296.98 L 576.67 296.39 L 604 295.09 L 631.33 297.28 L 658.67 294.55 L 686 294.2 L 713.33 295.49 L 740.67 297.88 L 768 298.9 L 795.33 297.57 L 822.67 297.67 L 850 296.17" fill="none" stroke="#9a4f00" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
+<circle cx="850" cy="296.17" r="3" fill="#9a4f00" />
+<path d="M 112 293.36 L 139.33 311.86 L 166.67 298.34 L 194 313.37 L 221.33 313.29 L 248.67 312.7 L 276 320.24 L 303.33 319.54 L 330.67 323.37 L 358 322.22 L 385.33 325.74 L 412.67 327.83 L 440 327.27 L 467.33 328.24 L 494.67 324.69 L 522 326.62 L 549.33 329.95 L 576.67 330.5 L 604 330.47 L 631.33 323.54 L 658.67 322.77 L 686 318.2 L 713.33 320.01 L 740.67 321.35 L 768 320.95 L 795.33 318.38 L 822.67 314.08 L 850 311.84" fill="none" stroke="#5e477e" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
+<circle cx="850" cy="311.84" r="3" fill="#5e477e" />
+<text x="870" y="336.2" fill="#0b5563" font-family="system-ui, -apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, sans-serif" font-size="12px" font-weight="600">Model (v1) · 21.07</text>
+<text x="870" y="300.17" fill="#9a4f00" font-family="system-ui, -apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, sans-serif" font-size="12px" font-weight="600">B1 · same-hour 7-day · 33.35</text>
+<line x1="852" y1="311.84" x2="863" y2="314.17" stroke="#5e477e" stroke-width="0.8" />
+<text x="870" y="318.17" fill="#5e477e" font-family="system-ui, -apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, sans-serif" font-size="12px" font-weight="600">B2 · same-hour previous-day · 28.01</text>
 <text x="70" y="513" fill="#1f2933" font-family="system-ui, -apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, sans-serif" font-size="15px" font-weight="650">Panel B · Negative-price probability</text>
 <text x="70" y="534" fill="#5b6770" font-family="system-ui, -apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, sans-serif" font-size="11px">Cumulative Brier score · lower is better</text>
-<text x="540" y="534" fill="#5b6770" font-family="system-ui, -apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, sans-serif" font-size="11px" text-anchor="end">648 evaluated hours · 43 negative · 70 below EUR 10</text>
+<text x="540" y="534" fill="#5b6770" font-family="system-ui, -apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, sans-serif" font-size="11px" text-anchor="end">672 evaluated hours · 43 negative · 70 below EUR 10</text>
 <text x="70" y="549" fill="#1f2933" font-family="system-ui, -apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, sans-serif" font-size="11px">Support reached: 43 negative-price hours; window open through 31 October 2026.</text>
 <text x="70" y="563" fill="#5b6770" font-family="system-ui, -apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, sans-serif" font-size="10px">Descriptive early sample; no reliable forecasting claim is made before the gates.</text>
 <line x1="104" y1="690" x2="420" y2="690" stroke="#e8e8e4" stroke-width="0.8" />
@@ -61,21 +61,21 @@
 <line x1="104" y1="690" x2="420" y2="690" stroke="#d8d9d6" stroke-width="1" />
 <line x1="104" y1="690" x2="104" y2="694" stroke="#d8d9d6" stroke-width="1" />
 <text x="104" y="712" fill="#5b6770" font-family="system-ui, -apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, sans-serif" font-size="11px" text-anchor="middle">3 Aug</text>
-<line x1="262" y1="690" x2="262" y2="694" stroke="#d8d9d6" stroke-width="1" />
-<text x="262" y="712" fill="#5b6770" font-family="system-ui, -apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, sans-serif" font-size="11px" text-anchor="middle">16 Aug</text>
+<line x1="256.15" y1="690" x2="256.15" y2="694" stroke="#d8d9d6" stroke-width="1" />
+<text x="256.15" y="712" fill="#5b6770" font-family="system-ui, -apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, sans-serif" font-size="11px" text-anchor="middle">16 Aug</text>
 <line x1="420" y1="690" x2="420" y2="694" stroke="#d8d9d6" stroke-width="1" />
-<text x="420" y="712" fill="#5b6770" font-family="system-ui, -apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, sans-serif" font-size="11px" text-anchor="middle">6 Sep</text>
+<text x="420" y="712" fill="#5b6770" font-family="system-ui, -apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, sans-serif" font-size="11px" text-anchor="middle">7 Sep</text>
 <text x="262" y="738" fill="#5b6770" font-family="system-ui, -apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, sans-serif" font-size="11px" text-anchor="middle">scored delivery date</text>
 <text x="42" y="637.5" fill="#5b6770" font-family="system-ui, -apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, sans-serif" font-size="11px" text-anchor="middle" transform="rotate(-90 42 637.5)">Brier score</text>
-<path d="M 104 652.87 L 116.15 669.71 L 128.31 651.6 L 140.46 652.16 L 152.62 643.72 L 164.77 646.47 L 176.92 642.17 L 189.08 643.54 L 201.23 645.31 L 213.38 643.98 L 225.54 647.42 L 237.69 650.93 L 249.85 643.59 L 262 645.01 L 274.15 648.01 L 286.31 650.64 L 298.46 652.55 L 310.62 654.63 L 322.77 656.49 L 334.92 655.3 L 347.08 656.54 L 359.23 658.06 L 371.38 659.43 L 383.54 660.25 L 395.69 657.47 L 407.85 657.4 L 420 654.37" fill="none" stroke="#0b5563" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
-<circle cx="420" cy="654.37" r="3" fill="#0b5563" />
-<path d="M 104 658.95 L 116.15 658.95 L 128.31 638.95 L 140.46 628.96 L 152.62 634.95 L 164.77 619.99 L 176.92 613.29 L 189.08 619 L 201.23 620.91 L 213.38 624.71 L 225.54 627.83 L 237.69 630.42 L 249.85 632.62 L 262 634.5 L 274.15 636.13 L 286.31 637.55 L 298.46 638.81 L 310.62 639.93 L 322.77 640.93 L 334.92 639.82 L 347.08 633.98 L 359.23 635.11 L 371.38 636.15 L 383.54 637.1 L 395.69 637.97 L 407.85 629.72 L 420 627.85" fill="none" stroke="#9a4f00" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
-<circle cx="420" cy="627.85" r="3" fill="#9a4f00" />
-<text x="438" y="658.37" fill="#0b5563" font-family="system-ui, -apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, sans-serif" font-size="12px" font-weight="600">Model · 0.0305</text>
-<text x="438" y="631.85" fill="#9a4f00" font-family="system-ui, -apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, sans-serif" font-size="12px" font-weight="600">Climatology · 0.0533</text>
+<path d="M 104 652.87 L 115.7 669.71 L 127.41 651.6 L 139.11 652.16 L 150.81 643.72 L 162.52 646.47 L 174.22 642.17 L 185.93 643.54 L 197.63 645.31 L 209.33 643.98 L 221.04 647.42 L 232.74 650.93 L 244.44 643.59 L 256.15 645.01 L 267.85 648.01 L 279.56 650.64 L 291.26 652.55 L 302.96 654.63 L 314.67 656.49 L 326.37 655.3 L 338.07 656.54 L 349.78 658.06 L 361.48 659.43 L 373.19 660.25 L 384.89 657.47 L 396.59 657.4 L 408.3 654.37 L 420 655.5" fill="none" stroke="#0b5563" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
+<circle cx="420" cy="655.5" r="3" fill="#0b5563" />
+<path d="M 104 658.95 L 115.7 658.95 L 127.41 638.95 L 139.11 628.96 L 150.81 634.95 L 162.52 619.99 L 174.22 613.29 L 185.93 619 L 197.63 620.91 L 209.33 624.71 L 221.04 627.83 L 232.74 630.42 L 244.44 632.62 L 256.15 634.5 L 267.85 636.13 L 279.56 637.55 L 291.26 638.81 L 302.96 639.93 L 314.67 640.93 L 326.37 639.82 L 338.07 633.98 L 349.78 635.11 L 361.48 636.15 L 373.19 637.1 L 384.89 637.97 L 396.59 629.72 L 408.3 627.85 L 420 629.4" fill="none" stroke="#9a4f00" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
+<circle cx="420" cy="629.4" r="3" fill="#9a4f00" />
+<text x="438" y="659.5" fill="#0b5563" font-family="system-ui, -apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, sans-serif" font-size="12px" font-weight="600">Model · 0.0296</text>
+<text x="438" y="633.4" fill="#9a4f00" font-family="system-ui, -apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, sans-serif" font-size="12px" font-weight="600">Climatology · 0.0519</text>
 <text x="639" y="513" fill="#1f2933" font-family="system-ui, -apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, sans-serif" font-size="15px" font-weight="650">Panel C · Interval coverage</text>
 <text x="639" y="534" fill="#5b6770" font-family="system-ui, -apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, sans-serif" font-size="11px">Empirical coverage against nominal reference</text>
-<text x="1109" y="513" fill="#5b6770" font-family="system-ui, -apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, sans-serif" font-size="11px" text-anchor="end">648 evaluated hours</text>
+<text x="1109" y="513" fill="#5b6770" font-family="system-ui, -apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, sans-serif" font-size="11px" text-anchor="end">672 evaluated hours</text>
 <text x="639" y="549" fill="#1f2933" font-family="system-ui, -apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, sans-serif" font-size="11px">Coverage alone is not utility: wider intervals can over-cover.</text>
 <text x="639" y="563" fill="#5b6770" font-family="system-ui, -apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, sans-serif" font-size="10px">Pinball loss and interval width remain part of Call C.</text>
 <line x1="673" y1="690" x2="990" y2="690" stroke="#e8e8e4" stroke-width="0.8" />
@@ -92,22 +92,22 @@
 <line x1="673" y1="690" x2="990" y2="690" stroke="#d8d9d6" stroke-width="1" />
 <line x1="673" y1="690" x2="673" y2="694" stroke="#d8d9d6" stroke-width="1" />
 <text x="673" y="712" fill="#5b6770" font-family="system-ui, -apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, sans-serif" font-size="11px" text-anchor="middle">3 Aug</text>
-<line x1="831.5" y1="690" x2="831.5" y2="694" stroke="#d8d9d6" stroke-width="1" />
-<text x="831.5" y="712" fill="#5b6770" font-family="system-ui, -apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, sans-serif" font-size="11px" text-anchor="middle">16 Aug</text>
+<line x1="825.63" y1="690" x2="825.63" y2="694" stroke="#d8d9d6" stroke-width="1" />
+<text x="825.63" y="712" fill="#5b6770" font-family="system-ui, -apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, sans-serif" font-size="11px" text-anchor="middle">16 Aug</text>
 <line x1="990" y1="690" x2="990" y2="694" stroke="#d8d9d6" stroke-width="1" />
-<text x="990" y="712" fill="#5b6770" font-family="system-ui, -apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, sans-serif" font-size="11px" text-anchor="middle">6 Sep</text>
+<text x="990" y="712" fill="#5b6770" font-family="system-ui, -apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, sans-serif" font-size="11px" text-anchor="middle">7 Sep</text>
 <text x="831.5" y="738" fill="#5b6770" font-family="system-ui, -apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, sans-serif" font-size="11px" text-anchor="middle">scored delivery date</text>
 <text x="611" y="637.5" fill="#5b6770" font-family="system-ui, -apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, sans-serif" font-size="11px" text-anchor="middle" transform="rotate(-90 611 637.5)">coverage</text>
 <line x1="673" y1="637.5" x2="990" y2="637.5" stroke="#8a9298" stroke-width="1" stroke-dasharray="4 4" />
 <text x="681" y="632.5" fill="#8a9298" font-family="system-ui, -apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, sans-serif" font-size="10px">50% nominal</text>
 <line x1="673" y1="606" x2="990" y2="606" stroke="#8a9298" stroke-width="1" stroke-dasharray="4 4" />
 <text x="681" y="601" fill="#8a9298" font-family="system-ui, -apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, sans-serif" font-size="10px">80% nominal</text>
-<path d="M 673 650.62 L 685.19 644.06 L 697.38 643.33 L 709.58 647.34 L 721.77 641.88 L 733.96 646.25 L 746.15 639.38 L 758.35 639.14 L 770.54 640.9 L 782.73 640.56 L 794.92 640.68 L 807.12 637.5 L 819.31 634.81 L 831.5 635.94 L 843.69 637.21 L 855.88 637.23 L 868.08 639.82 L 880.27 638.47 L 892.46 639.11 L 904.65 640.34 L 916.85 639.79 L 929.04 639.49 L 941.23 639.02 L 953.42 641.15 L 965.62 641.35 L 977.81 640.87 L 990 642.04" fill="none" stroke="#0b5563" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
-<circle cx="990" cy="642.04" r="3" fill="#0b5563" />
-<path d="M 673 611.25 L 685.19 613.44 L 697.38 609.79 L 709.58 605.78 L 721.77 601.62 L 733.96 601.77 L 746.15 599.38 L 758.35 597.58 L 770.54 598.61 L 782.73 598.12 L 794.92 598.92 L 807.12 597.76 L 819.31 596.78 L 831.5 599.06 L 843.69 601.04 L 855.88 601.41 L 868.08 605.33 L 880.27 604.2 L 892.46 605.03 L 904.65 604.91 L 916.85 605.62 L 929.04 605.28 L 941.23 604.59 L 953.42 605.42 L 965.62 605.3 L 977.81 604.86 L 990 606.55" fill="none" stroke="#2b8790" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
-<circle cx="990" cy="606.55" r="3" fill="#2b8790" />
-<text x="1008" y="646.04" fill="#0b5563" font-family="system-ui, -apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, sans-serif" font-size="12px" font-weight="600">50% empirical · 45.7%</text>
-<text x="1008" y="610.55" fill="#2b8790" font-family="system-ui, -apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, sans-serif" font-size="12px" font-weight="600">80% empirical · 79.5%</text>
+<path d="M 673 650.62 L 684.74 644.06 L 696.48 643.33 L 708.22 647.34 L 719.96 641.88 L 731.7 646.25 L 743.44 639.38 L 755.19 639.14 L 766.93 640.9 L 778.67 640.56 L 790.41 640.68 L 802.15 637.5 L 813.89 634.81 L 825.63 635.94 L 837.37 637.21 L 849.11 637.23 L 860.85 639.82 L 872.59 638.47 L 884.33 639.11 L 896.07 640.34 L 907.81 639.79 L 919.56 639.49 L 931.3 639.02 L 943.04 641.15 L 954.78 641.35 L 966.52 640.87 L 978.26 642.04 L 990 643.44" fill="none" stroke="#0b5563" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
+<circle cx="990" cy="643.44" r="3" fill="#0b5563" />
+<path d="M 673 611.25 L 684.74 613.44 L 696.48 609.79 L 708.22 605.78 L 719.96 601.62 L 731.7 601.77 L 743.44 599.38 L 755.19 597.58 L 766.93 598.61 L 778.67 598.12 L 790.41 598.92 L 802.15 597.76 L 813.89 596.78 L 825.63 599.06 L 837.37 601.04 L 849.11 601.41 L 860.85 605.33 L 872.59 604.2 L 884.33 605.03 L 896.07 604.91 L 907.81 605.62 L 919.56 605.28 L 931.3 604.59 L 943.04 605.42 L 954.78 605.3 L 966.52 604.86 L 978.26 606.55 L 990 608.28" fill="none" stroke="#2b8790" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
+<circle cx="990" cy="608.28" r="3" fill="#2b8790" />
+<text x="1008" y="647.44" fill="#0b5563" font-family="system-ui, -apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, sans-serif" font-size="12px" font-weight="600">50% empirical · 44.3%</text>
+<text x="1008" y="612.28" fill="#2b8790" font-family="system-ui, -apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, sans-serif" font-size="12px" font-weight="600">80% empirical · 77.8%</text>
 <line x1="48" y1="810" x2="1152" y2="810" stroke="#d8d9d6" stroke-width="1" />
 <text x="48" y="833" fill="#5b6770" font-family="system-ui, -apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, sans-serif" font-size="10px">Source: results/ledger.jsonl · SCORED rows only · cumulative values use scored-hour weights · missed and pending rows are excluded.</text>
 <text x="48" y="850" fill="#5b6770" font-family="system-ui, -apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, sans-serif" font-size="10px">Sample still accumulating; no final claim is made before the preregistered gates are reached.</text>
