@@ -4,7 +4,7 @@
 CI (`.github/workflows/integrity.yml`) fails the build if an existing file here
 is changed or deleted.
 
-One file per delivery day, `YYYY-MM-DD.json`, named for the **delivery** day —
+One file per delivery day, `YYYY-MM-DD.json`, named for the **delivery** day,
 not the day the forecast was made. Each contains:
 
 - the seal timestamp (UTC), which must precede 12:00 Europe/Berlin on D-1;
