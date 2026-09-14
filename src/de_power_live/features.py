@@ -274,7 +274,7 @@ def assert_no_leakage(
         raise LeakageError("empty target index")
 
     # Prices and actuals become knowable on completely different schedules, and
-    # applying one rule to both is wrong in one direction or the other.
+    # applying one availability rule to both would create a timing error.
     #
     # A day-ahead price for delivery day X is published just after the auction
     # clears at 12:00 local on X-1. So at a cutoff on day D, every price for

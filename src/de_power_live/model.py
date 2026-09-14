@@ -211,8 +211,8 @@ class DayAheadModel:
         # actually lands on held-out data, then widening by that amount.
         split = int(len(matrix) * (1 - CALIBRATION_FRACTION))
         if split < 24 * 30 or len(matrix) - split < 24 * 30:
-            # Too little data to hold out honestly; fit on everything and leave
-            # the intervals uncalibrated rather than calibrate on noise.
+            # Too little data for a stable holdout; fit on all rows and leave
+            # the intervals uncalibrated.
             self.quantile_model = XGBRegressor(**QUANTILE_PARAMS).fit(matrix, residual)
             self.conformal_offsets = {}
         else:
