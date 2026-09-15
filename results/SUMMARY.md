@@ -4,7 +4,7 @@ Descriptive only. The formal assessment against the pre-registered success
 criteria happens once, at the close of the evaluation window on 2026-10-31.
 Reading these numbers and stopping early is precluded by the pre-registration.
 
-*Updated 2026-09-14T18:57:44+00:00*
+*Updated 2026-09-15T17:50:10+00:00*
 
 - Days scored: **33**
 - Days missed: **8** (2026-08-28, 2026-08-29, 2026-08-30, 2026-08-31, 2026-09-01, 2026-09-02, 2026-09-03, 2026-09-04)
