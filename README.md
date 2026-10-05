@@ -14,7 +14,7 @@ market had already priced in.
 
 [Scored record](results/README.md) · [Frozen methodology and success criteria](PREREGISTRATION.md)
 
-## What is being claimed, and what is not
+## Preregistered evaluation
 
 Three calls are pre-registered:
 
@@ -24,13 +24,7 @@ Three calls are pre-registered:
 | **B** | Hours clearing below 0 EUR/MWh | PR-AUC beats an hour-of-day/month climatology, CI excluding zero |
 | **C** | 50% and 80% prediction intervals | Empirical coverage within 5pp of nominal at both levels |
 
-**No tradeable edge is claimed.** Calls A and B compare against naive and
-climatological baselines, not against the market's own expectation. Beating
-same-hour-last-week persistence is a statement about persistence, not about the
-market. No P&L is simulated or implied anywhere in this repository.
-
-A null on all three is a possible outcome and would be reported as such. What
-the project guarantees is the record, not the result.
+A null on all three calls is a possible outcome and will be reported as such.
 
 ## The look-ahead trap this design exists to avoid
 
