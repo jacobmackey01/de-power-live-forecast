@@ -1,27 +1,18 @@
 # Live day-ahead forecasting track record — DE-LU power
 
-A forecast published **before** the day-ahead auction closes, scored **after** it
-settles, with the commit history as the evidence that the two happened in that
-order.
+Daily forecasts of hourly DE-LU day-ahead prices, negative-price probabilities
+and prediction intervals, published before auction close and scored after settlement.
+The frozen model uses forward weather forecasts with realised market history;
+performance is compared with same-hour-last-week and climatological baselines.
 
-Most forecasting projects are backtests. A backtest is cheap: the outcome is
-already in the file when the method is chosen, and every honest researcher knows
-how much that quietly buys you. This repository is an attempt to give up that
-advantage on purpose.
+The prospective evaluation runs through **31 October 2026**. The current record
+is descriptive; the formal assessment is published after the window closes.
+**No tradeable edge or P&L is claimed:** these baselines do not measure what the
+market had already priced in.
 
-Every trading day the system:
+[![Prospective DE-LU forecast record showing cumulative price MAE against two baselines, negative-price Brier score and prediction-interval coverage](results/prospective_track_record.svg)](results/README.md)
 
-1. pulls forward weather and realised market history, hashing every payload;
-2. produces a forecast for the next delivery day, sealed with a UTC timestamp;
-3. commits it before 12:00 Europe/Berlin, when the auction gate closes;
-4. scores it against outturn once settled, appending to a public ledger it can
-   never edit backwards.
-
-**Read [`PREREGISTRATION.md`](PREREGISTRATION.md) first.** It is frozen as of the
-first sealed prediction and defines the three calls being made, what counts as a
-null, and what is explicitly not being claimed.
-
----
+[Scored record](results/README.md) · [Frozen methodology and success criteria](PREREGISTRATION.md)
 
 ## What is being claimed, and what is not
 
@@ -40,14 +31,6 @@ market. No P&L is simulated or implied anywhere in this repository.
 
 A null on all three is a possible outcome and would be reported as such. What
 the project guarantees is the record, not the result.
-
-## Current prospective record
-
-[![Prospective DE-LU forecast record showing cumulative price MAE against two baselines, negative-price Brier score and prediction-interval coverage](results/prospective_track_record.svg)](results/README.md)
-
-*Forecasts are sealed before auction close and outcomes are scored after settlement. Metrics use only committed scored rows through the latest scored delivery date; the sample is still accumulating, so no final claim is made before the preregistered gates are reached.*
-
----
 
 ## The look-ahead trap this design exists to avoid
 
