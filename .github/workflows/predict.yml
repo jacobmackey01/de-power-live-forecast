@@ -104,10 +104,26 @@ jobs:
           echo "Sleeping ${WAIT}s until $SEAL_WINDOW_LOCAL Europe/Berlin."
           sleep "$WAIT"
 
+      # Retried because SMARD occasionally drops a connection without replying
+      # (the 2026-10-27 score run died on exactly that), and smard.py cannot be
+      # patched mid-window: it is inside the frozen model_source_sha256. Retrying
+      # here changes no model input. A retry cannot seal late, since predict.py
+      # still refuses after gate closure, and it cannot seal twice, since seal()
+      # is write-once and fails rather than overwrite an existing file.
       - name: Seal tomorrow's forecast
         id: seal
         if: steps.guard.outputs.skip == 'false'
-        run: python -m de_power_live.predict
+        run: |
+          for attempt in 1 2 3; do
+            if python -m de_power_live.predict; then
+              exit 0
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              echo "Attempt $attempt failed; retrying in 5 minutes."
+              sleep 300
+            fi
+          done
+          exit 1
 
       - name: Record a miss if sealing failed
         id: miss
