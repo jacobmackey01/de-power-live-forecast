@@ -6,13 +6,15 @@ The frozen model uses forward weather forecasts with realised market history;
 performance is compared with same-hour-last-week and climatological baselines.
 
 The prospective evaluation runs through **31 October 2026**. The current record
-is descriptive; the formal assessment is published after the window closes.
+is descriptive. The formal assessment is written automatically by the scoring
+job, as [`results/FINAL_REPORT.md`](results/FINAL_REPORT.md), once every window
+day is scored or recorded missed.
 **No tradeable edge or P&L is claimed:** these baselines do not measure what the
 market had already priced in.
 
 [![Prospective DE-LU forecast record showing cumulative price MAE against two baselines, negative-price Brier score and prediction-interval coverage](results/prospective_track_record.svg)](results/README.md)
 
-[Scored record](results/README.md) · [Frozen methodology and success criteria](PREREGISTRATION.md)
+[Scored record](results/README.md) · [Frozen methodology and success criteria](PREREGISTRATION.md) · [v1 lessons and v2 plan](docs/v1-lessons.md)
 
 ## Preregistered evaluation
 

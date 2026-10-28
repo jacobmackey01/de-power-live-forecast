@@ -328,7 +328,13 @@ def _read_entries(path: Path) -> list[tuple[int, dict[str, Any]]]:
     return entries
 
 
-def load_record(path: Path = LEDGER_PATH) -> TrackRecord:
+def load_record(path: Path = LEDGER_PATH, through: date | None = EVALUATION_END) -> TrackRecord:
+    """The record the published figure shows: by default, the evaluation window only.
+
+    v1 keeps sealing and scoring after EVALUATION_END as a benchmark for a later,
+    separately pre-registered phase. Those days are still validated here, but
+    they are not part of this window and never enter its figure or metrics.
+    """
     entries = _read_entries(Path(path))
     seen_dates: dict[date, tuple[int, str]] = {}
     scored: list[DayRecord] = []
@@ -357,6 +363,8 @@ def load_record(path: Path = LEDGER_PATH) -> TrackRecord:
             )
         seen_dates[delivery_date] = (line_number, status)
 
+        if through is not None and delivery_date > through:
+            continue
         if status == "SCORED":
             scored.append(_parse_scored(row, line_number, delivery_date))
         elif status == "MISSED":

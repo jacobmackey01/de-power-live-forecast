@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import argparse
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import numpy as np
@@ -20,6 +20,7 @@ import pandas as pd
 from . import MARKET_TZ
 from .model import QUANTILES, climatology_probability
 from .smard import SmardClient
+from .track_record import EVALUATION_END
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PREDICTIONS_DIR = REPO_ROOT / "predictions"
@@ -191,16 +192,49 @@ def score_day(payload: dict, prices: pd.Series) -> dict:
     }
 
 
+def _aggregate_rows(scored: list[dict]) -> list[str]:
+    """Hour-weighted aggregates, pooled the way PREREGISTRATION.md defines them."""
+    hours = sum(e["n_hours_scored"] for e in scored)
+    err = sum(e["call_a"]["mae_model"] * e["n_hours_scored"] for e in scored)
+    err_b1 = sum(e["call_a"]["mae_baseline_b1_lag168"] * e["n_hours_scored"] for e in scored)
+    hits80 = sum(round(e["call_c"]["coverage_80"] * e["n_hours_scored"]) for e in scored)
+    hits50 = sum(round(e["call_c"]["coverage_50"] * e["n_hours_scored"]) for e in scored)
+    neg = sum(e["call_b"]["n_negative_hours"] for e in scored)
+    below10 = sum(e["call_b"].get("n_below_10_hours", 0) for e in scored)
+    return [
+        "| Call | Metric | Value |",
+        "|---|---|---|",
+        f"| A | pooled MAE | {err / hours:.2f} EUR/MWh |",
+        f"| A | pooled skill vs B1 (pre-registered metric) | {1 - err / err_b1:+.4f} |",
+        f"| B | negative hours observed | {neg} |",
+        f"| B | powered (needs 30) | {'yes' if neg >= 30 else 'not yet'} |",
+        f"| B | fallback (<10 EUR/MWh) hours | {below10} |",
+        f"| C | empirical 80% coverage | {hits80 / hours:.3f} (nominal 0.800) |",
+        f"| C | empirical 50% coverage | {hits50 / hours:.3f} (nominal 0.500) |",
+        "",
+    ]
+
+
 def write_summary(ledger: list[dict]) -> None:
     scored = [e for e in ledger if e.get("status") == "SCORED"]
     missed = [e for e in ledger if e.get("status") == "MISSED"]
+    end = EVALUATION_END.isoformat()
+    in_window = [e for e in scored if e["delivery_date_local"] <= end]
+    after = [e for e in scored if e["delivery_date_local"] > end]
+    closed = any(e["delivery_date_local"] == end for e in ledger)
 
     lines = [
         "# Running scoring ledger",
         "",
-        "Descriptive only. The formal assessment against the pre-registered success",
-        "criteria happens once, at the close of the evaluation window on 2026-10-31.",
-        "Reading these numbers and stopping early is precluded by the pre-registration.",
+        (
+            f"The evaluation window closed on {end}. The formal assessment against the "
+            "pre-registered success criteria is in [FINAL_REPORT.md](FINAL_REPORT.md), "
+            "written once every window day is scored or recorded missed."
+            if closed
+            else "Descriptive only. The formal assessment against the pre-registered success "
+            f"criteria happens once, at the close of the evaluation window on {end}. "
+            "Reading these numbers and stopping early is precluded by the pre-registration."
+        ),
         "",
         f"*Updated {datetime.now(timezone.utc).isoformat(timespec='seconds')}*",
         "",
@@ -210,26 +244,19 @@ def write_summary(ledger: list[dict]) -> None:
         "",
     ]
 
-    if scored:
-        skills = [e["call_a"]["skill_vs_b1"] for e in scored if e["call_a"]["skill_vs_b1"] is not None]
-        cov80 = [e["call_c"]["coverage_80"] for e in scored]
-        cov50 = [e["call_c"]["coverage_50"] for e in scored]
-        neg = sum(e["call_b"]["n_negative_hours"] for e in scored)
-        below10 = sum(e["call_b"].get("n_below_10_hours", 0) for e in scored)
-
+    if in_window:
+        lines += [f"## Evaluation window (through {end})", "", *_aggregate_rows(in_window)]
+    if after:
         lines += [
-            "## Running aggregates",
+            f"## After the window (from {(EVALUATION_END + timedelta(days=1)).isoformat()})",
             "",
-            "| Call | Metric | Value |",
-            "|---|---|---|",
-            f"| A | mean daily MAE | {np.mean([e['call_a']['mae_model'] for e in scored]):.2f} EUR/MWh |",
-            f"| A | mean skill vs B1 | {np.mean(skills):+.4f} |" if skills else "| A | mean skill vs B1 | n/a |",
-            f"| B | negative hours observed | {neg} |",
-            f"| B | powered (needs 30) | {'yes' if neg >= 30 else 'not yet'} |",
-            f"| B | fallback (<10 EUR/MWh) hours | {below10} |",
-            f"| C | empirical 80% coverage | {np.mean(cov80):.3f} (nominal 0.800) |",
-            f"| C | empirical 50% coverage | {np.mean(cov50):.3f} (nominal 0.500) |",
+            "v1 keeps running as the benchmark for a later, separately pre-registered phase.",
+            "These days are not part of the evaluation above.",
             "",
+            *_aggregate_rows(after),
+        ]
+    if scored:
+        lines += [
             "## Per-day",
             "",
             "| Delivery | Sealed (min before close) | MAE | B1 MAE | Skill | Cov80 | Neg hrs |",

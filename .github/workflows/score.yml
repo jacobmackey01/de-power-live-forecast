@@ -30,11 +30,33 @@ jobs:
 
       - run: python -m pip install --upgrade pip && pip install -e .
 
+      # Retried for the same reason as the seal step in predict.yml: SMARD can
+      # drop a connection without replying (it did on 2026-10-27), and smard.py
+      # sits inside the frozen model hash. A retry appends nothing twice, since
+      # score.py skips every day already in the ledger.
       - name: Score settled predictions
-        run: python -m de_power_live.score
+        run: |
+          for attempt in 1 2 3; do
+            if python -m de_power_live.score; then
+              exit 0
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              echo "Attempt $attempt failed; retrying in 5 minutes."
+              sleep 300
+            fi
+          done
+          exit 1
 
       - name: Generate deterministic track-record figure
         run: python -m de_power_live.track_record
+
+      # Writes results/FINAL_REPORT.md once every window day is SCORED or
+      # MISSED, and nothing before. Deterministic, so later runs rewrite the
+      # same bytes and the commit step below finds nothing to commit. A failure
+      # here is flagged on the run but must never hold back the day's scores.
+      - name: Final assessment of the evaluation window
+        continue-on-error: true
+        run: python -m de_power_live.final_report
 
       # This workflow has no push trigger, so the derived SVG commit cannot loop.
       - name: Commit ledger
