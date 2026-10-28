@@ -22,6 +22,13 @@ BERLIN = ZoneInfo("Europe/Berlin")
 FIRST = date(2026, 10, 20)
 
 
+@pytest.fixture(autouse=True)
+def _fewer_bootstrap_draws(monkeypatch):
+    # The verdict logic does not depend on the draw count, and 10,000 draws per
+    # report made this file the slowest in the suite by a wide margin.
+    monkeypatch.setattr(final_report, "BOOTSTRAP_DRAWS", 200)
+
+
 def _hours_utc(day: date) -> list[str]:
     start = datetime.combine(day, time(), BERLIN).astimezone(timezone.utc)
     return [
