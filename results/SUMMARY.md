@@ -1,28 +1,29 @@
 # Running scoring ledger
 
-Descriptive only. The formal assessment against the pre-registered success criteria happens once, at the close of the evaluation window on 2026-10-31. Reading these numbers and stopping early is precluded by the pre-registration.
+The evaluation window closed on 2026-10-31. The formal assessment against the pre-registered success criteria is in [FINAL_REPORT.md](FINAL_REPORT.md), written once every window day is scored or recorded missed.
 
-*Updated 2026-11-01T18:40:55+00:00*
+*Updated 2026-11-02T22:31:17+00:00*
 
-- Days scored: **80**
+- Days scored: **81**
 - Days missed: **9** (2026-08-28, 2026-08-29, 2026-08-30, 2026-08-31, 2026-09-01, 2026-09-02, 2026-09-03, 2026-09-04, 2026-10-25)
 
 ## Evaluation window (through 2026-10-31)
 
 | Call | Metric | Value |
 |---|---|---|
-| A | pooled MAE | 35.75 EUR/MWh |
-| A | pooled skill vs B1 (pre-registered metric) | +0.3719 |
+| A | pooled MAE | 36.31 EUR/MWh |
+| A | pooled skill vs B1 (pre-registered metric) | +0.3842 |
 | B | negative hours observed | 63 |
 | B | powered (needs 30) | yes |
 | B | fallback (<10 EUR/MWh) hours | 126 |
-| C | empirical 80% coverage | 0.628 (nominal 0.800) |
-| C | empirical 50% coverage | 0.371 (nominal 0.500) |
+| C | empirical 80% coverage | 0.620 (nominal 0.800) |
+| C | empirical 50% coverage | 0.367 (nominal 0.500) |
 
 ## Per-day
 
 | Delivery | Sealed (min before close) | MAE | B1 MAE | Skill | Cov80 | Neg hrs |
 |---|---|---|---|---|---|---|
+| 2026-10-31 | 145 | 80.57 | 222.16 | +0.637 | 0.04 | 0 |
 | 2026-10-30 | 154 | 34.62 | 136.92 | +0.747 | 0.96 | 0 |
 | 2026-10-29 | 155 | 87.71 | 164.13 | +0.466 | 0.50 | 0 |
 | 2026-10-28 | 193 | 91.80 | 48.91 | -0.877 | 0.00 | 0 |

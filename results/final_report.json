@@ -1,0 +1,222 @@
+{
+  "bootstrap": {
+    "block": "one power day",
+    "draws": 10000,
+    "seed": 20261101
+  },
+  "by_version": {},
+  "calendar_days": 90,
+  "clock_change_days": [
+    {
+      "date": "2026-10-25",
+      "hours_scored": null,
+      "local_hours": 25,
+      "reason": "predict job failed in run 40073361367",
+      "status": "MISSED"
+    }
+  ],
+  "missed_days": [
+    "2026-08-28",
+    "2026-08-29",
+    "2026-08-30",
+    "2026-08-31",
+    "2026-09-01",
+    "2026-09-02",
+    "2026-09-03",
+    "2026-09-04",
+    "2026-10-25"
+  ],
+  "model_versions": {
+    "v1": [
+      "7acbc7bddc52afaed2da1c1ff6b639aa50cd240f77b6bd211373b94e45ba48df"
+    ]
+  },
+  "pooled": {
+    "call_a": {
+      "bias_model": -19.37062839506173,
+      "hours": 1944,
+      "mae_b1": 58.95903580246914,
+      "mae_b2": 41.97177283950618,
+      "mae_model": 36.3065037037037,
+      "rmse_model": 48.419466224943,
+      "verdict": "PASS",
+      "vs_b1": {
+        "ci95": [
+          0.3036290007501972,
+          0.45313622930025865
+        ],
+        "skill": 0.3842079808540013
+      },
+      "vs_b2": {
+        "ci95": [
+          -0.009915459683495612,
+          0.25713203206997115
+        ],
+        "skill": 0.13497807580026766
+      }
+    },
+    "call_b": {
+      "targets": {
+        "below_10": {
+          "difference": 0.5070916467681107,
+          "difference_ci95": [
+            0.38502703262007615,
+            0.6066369284861736
+          ],
+          "draws_without_events": 0,
+          "events": 126,
+          "hours": 1944,
+          "label": "< 10 EUR/MWh",
+          "pr_auc_climatology": 0.34823183594194174,
+          "pr_auc_model": 0.8553234827100524
+        },
+        "negative": {
+          "brier_climatology": 0.029095178267261827,
+          "brier_model": 0.016470990431995885,
+          "difference": 0.6399658597289,
+          "difference_ci95": [
+            0.46683640068109367,
+            0.7722483409753457
+          ],
+          "draws_without_events": 0,
+          "events": 63,
+          "hours": 1944,
+          "label": "< 0 EUR/MWh",
+          "pr_auc_climatology": 0.23176898650227618,
+          "pr_auc_model": 0.8717348462311761,
+          "reliability": [
+            {
+              "bin": "0.0-0.1",
+              "hours": 1768,
+              "mean_forecast": 0.0032001018099547516,
+              "observed_rate": 0.0
+            },
+            {
+              "bin": "0.1-0.2",
+              "hours": 32,
+              "mean_forecast": 0.1498971875,
+              "observed_rate": 0.0
+            },
+            {
+              "bin": "0.2-0.3",
+              "hours": 23,
+              "mean_forecast": 0.24470869565217396,
+              "observed_rate": 0.13043478260869565
+            },
+            {
+              "bin": "0.3-0.4",
+              "hours": 20,
+              "mean_forecast": 0.3391815,
+              "observed_rate": 0.1
+            },
+            {
+              "bin": "0.4-0.5",
+              "hours": 9,
+              "mean_forecast": 0.4577433333333334,
+              "observed_rate": 0.4444444444444444
+            },
+            {
+              "bin": "0.5-0.6",
+              "hours": 11,
+              "mean_forecast": 0.53995,
+              "observed_rate": 0.2727272727272727
+            },
+            {
+              "bin": "0.6-0.7",
+              "hours": 6,
+              "mean_forecast": 0.6425183333333334,
+              "observed_rate": 0.0
+            },
+            {
+              "bin": "0.7-0.8",
+              "hours": 13,
+              "mean_forecast": 0.7409938461538462,
+              "observed_rate": 0.15384615384615385
+            },
+            {
+              "bin": "0.8-0.9",
+              "hours": 10,
+              "mean_forecast": 0.8651389999999999,
+              "observed_rate": 0.4
+            },
+            {
+              "bin": "0.9-1.0",
+              "hours": 52,
+              "mean_forecast": 0.97351,
+              "observed_rate": 0.8653846153846154
+            }
+          ]
+        }
+      },
+      "tested_target": "negative",
+      "verdict": "PASS"
+    },
+    "call_c": {
+      "hours": 1944,
+      "levels": {
+        "50": {
+          "binomial_ci95": [
+            0.3456289593666956,
+            0.3884356393519789
+          ],
+          "ci_inside_band": false,
+          "coverage": 0.36676954732510286,
+          "day_block_ci95": [
+            0.31224279835390945,
+            0.4218106995884774
+          ],
+          "nominal": 0.5,
+          "within_tolerance": false
+        },
+        "80": {
+          "binomial_ci95": [
+            0.5985802047129609,
+            0.6416857562902443
+          ],
+          "ci_inside_band": false,
+          "coverage": 0.6203703703703703,
+          "day_block_ci95": [
+            0.5534979423868313,
+            0.683641975308642
+          ],
+          "nominal": 0.8,
+          "within_tolerance": false
+        }
+      },
+      "pinball": {
+        "0.1": 7.992168775720163,
+        "0.25": 13.76611342592593,
+        "0.5": 19.572054783950634,
+        "0.75": 19.246349022633733,
+        "0.9": 13.633361522633725
+      },
+      "pit_counts": [
+        136,
+        169,
+        307,
+        406,
+        324,
+        602
+      ],
+      "pit_expected": [
+        194.4,
+        291.59999999999997,
+        486.0,
+        486.0,
+        291.6,
+        194.39999999999995
+      ],
+      "verdict": "NULL"
+    },
+    "days": 81
+  },
+  "scored_days": 81,
+  "seal_margin_minutes": {
+    "median": 139.5,
+    "min": 19.5
+  },
+  "window": {
+    "first": "2026-08-03",
+    "last": "2026-10-31"
+  }
+}
