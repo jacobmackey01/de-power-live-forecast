@@ -2,9 +2,9 @@
 
 The evaluation window closed on 2026-10-31. The formal assessment against the pre-registered success criteria is in [FINAL_REPORT.md](FINAL_REPORT.md), written once every window day is scored or recorded missed.
 
-*Updated 2026-11-03T20:21:10+00:00*
+*Updated 2026-11-04T20:36:41+00:00*
 
-- Days scored: **82**
+- Days scored: **83**
 - Days missed: **9** (2026-08-28, 2026-08-29, 2026-08-30, 2026-08-31, 2026-09-01, 2026-09-02, 2026-09-03, 2026-09-04, 2026-10-25)
 
 ## Evaluation window (through 2026-10-31)
@@ -26,18 +26,19 @@ These days are not part of the evaluation above.
 
 | Call | Metric | Value |
 |---|---|---|
-| A | pooled MAE | 108.06 EUR/MWh |
-| A | pooled skill vs B1 (pre-registered metric) | +0.5545 |
+| A | pooled MAE | 103.05 EUR/MWh |
+| A | pooled skill vs B1 (pre-registered metric) | +0.4651 |
 | B | negative hours observed | 0 |
 | B | powered (needs 30) | not yet |
 | B | fallback (<10 EUR/MWh) hours | 0 |
-| C | empirical 80% coverage | 0.000 (nominal 0.800) |
-| C | empirical 50% coverage | 0.000 (nominal 0.500) |
+| C | empirical 80% coverage | 0.146 (nominal 0.800) |
+| C | empirical 50% coverage | 0.021 (nominal 0.500) |
 
 ## Per-day
 
 | Delivery | Sealed (min before close) | MAE | B1 MAE | Skill | Cov80 | Neg hrs |
 |---|---|---|---|---|---|---|
+| 2026-11-02 | 109 | 98.04 | 142.74 | +0.313 | 0.29 | 0 |
 | 2026-11-01 | 157 | 108.06 | 242.56 | +0.555 | 0.00 | 0 |
 | 2026-10-31 | 145 | 80.57 | 222.16 | +0.637 | 0.04 | 0 |
 | 2026-10-30 | 154 | 34.62 | 136.92 | +0.747 | 0.96 | 0 |
