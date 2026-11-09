@@ -19,11 +19,32 @@ name: predict
 # model was fit at SEAL_LOCAL_HOUR, 11:00 Europe/Berlin, so three of its inputs
 # shift as the live seal moves away from that hour.
 #
-# So the cron moves to 02:12 UTC to get clear of the queue, and the job then
-# waits until a fixed local seal window before it seals. Start time and seal
-# time are thereby decoupled: a punctual run sleeps until the window, a run
-# delayed past the window seals immediately, and only a run delayed past the
-# gate misses - which now takes nearly eight hours of queue delay.
+# So the job starts early and then waits until a fixed local seal window before
+# it seals. Start time and seal time are thereby decoupled: a punctual run
+# sleeps until the window, and a run delayed past the window seals immediately.
+#
+# One cron was not enough. By 2026-11-09 the 02:12 UTC run was starting 6h30 to
+# 7h30 late, every seal since the window was introduced had landed after it
+# (the best margin on record is 205 minutes, against 270 at the window), and
+# the 2026-11-10 seal had 76 minutes to spare. So there are now three crons,
+# all after local midnight so "tomorrow" means the same day for each:
+#
+#   23:12 UTC  00:12 CET / 01:12 CEST
+#   00:42 UTC  01:42 CET / 02:42 CEST
+#   02:12 UTC  03:12 CET / 04:12 CEST   (the original, and the last)
+#
+# Whichever run first finds the day unsealed and the window within reach seals
+# it; the guard step makes every later run a no-op. A run that arrives too
+# early to sleep until the window inside one job seals nothing and leaves the
+# day to a later run (seal_wait.py). The last cron is never too early, so a
+# fully punctual queue behaves exactly as it did with one cron. The earliest
+# cron can be queued for 10h48 (summer) or 11h48 (winter) and still beat the
+# gate, against 7h48 and 8h48 for the last one.
+#
+# A seal that fails while the gate is still open is only recorded MISSED by the
+# last cron or by a manual run. An earlier run fails loudly and leaves the day
+# to the runs behind it, so a brief SMARD outage at 07:30 does not write off a
+# day that still has four hours of gate left.
 #
 # This buys reliability, not accuracy. It does not make any forecast better; it
 # makes it likelier that a forecast exists at all. See docs/seal-timing.md.
@@ -36,6 +57,8 @@ name: predict
 
 on:
   schedule:
+    - cron: "12 23 * * *"
+    - cron: "42 0 * * *"
     - cron: "12 2 * * *"
   workflow_dispatch:
     inputs:
@@ -56,12 +79,19 @@ env:
   # Anchored in local market time so it holds its distance from both the gate
   # and the training cutoff across the October DST change.
   SEAL_WINDOW_LOCAL: "07:30"
+  # Longest sleep one job can afford: the timeout below, less setup, the seal
+  # and its retries. A run further than this from the window steps aside.
+  MAX_WAIT_MINUTES: "270"
+  # The cron whose run is the day's last scheduled attempt. Only that run (or a
+  # manual one) records a miss while the gate is still open.
+  LAST_SCHEDULED_CRON: "12 2 * * *"
+  GATE_LOCAL: "12:00"
 
 jobs:
   seal:
     runs-on: ubuntu-latest
-    # Covers the longest possible wait (winter, punctual start) plus the run
-    # itself, and stays well inside the 6h job ceiling.
+    # Covers MAX_WAIT_MINUTES plus the run itself, and stays well inside the 6h
+    # job ceiling.
     timeout-minutes: 300
     steps:
       - uses: actions/checkout@v4
@@ -92,17 +122,25 @@ jobs:
       # since dispatch is the emergency path used when the queue has already
       # eaten the morning; pass skip_wait=false to rehearse the scheduled path.
       - name: Wait for the seal window
+        id: wait
         if: steps.guard.outputs.skip == 'false' && github.event.inputs.skip_wait != 'true'
         run: |
-          WINDOW=$(TZ=Europe/Berlin date -d "today $SEAL_WINDOW_LOCAL" +%s)
-          NOW=$(date +%s)
-          WAIT=$(( WINDOW - NOW ))
-          if [ "$WAIT" -le 0 ]; then
-            echo "Already past $SEAL_WINDOW_LOCAL Europe/Berlin; sealing now."
-            exit 0
-          fi
-          echo "Sleeping ${WAIT}s until $SEAL_WINDOW_LOCAL Europe/Berlin."
-          sleep "$WAIT"
+          set -o pipefail
+          python -m de_power_live.seal_wait \
+              --window "$SEAL_WINDOW_LOCAL" \
+              --max-wait-minutes "$MAX_WAIT_MINUTES" \
+            | tee "$RUNNER_TEMP/wait.out"
+          grep -E '^too_early=(true|false)$' "$RUNNER_TEMP/wait.out" >> "$GITHUB_OUTPUT"
+
+      # The wait can last hours, and until 2026-11-09 no live run had ever
+      # actually slept: the queue always delivered it after the window. If score
+      # pushes during the sleep, the push at the end of this job would be
+      # rejected and the sealed file lost with the runner. Refreshing here keeps
+      # that push a fast-forward. A failed refresh is not a reason not to seal.
+      - name: Refresh the checkout after the wait
+        if: steps.guard.outputs.skip == 'false' && steps.wait.outputs.too_early != 'true'
+        run: |
+          git pull --ff-only || echo "::warning::could not refresh the checkout; sealing on the commit already checked out"
 
       # Retried because SMARD occasionally drops a connection without replying
       # (the 2026-10-27 score run died on exactly that), and smard.py cannot be
@@ -110,9 +148,13 @@ jobs:
       # here changes no model input. A retry cannot seal late, since predict.py
       # still refuses after gate closure, and it cannot seal twice, since seal()
       # is write-once and fails rather than overwrite an existing file.
+      #
+      # Skipped when the wait step stepped aside as too early. A manual run with
+      # skip_wait never runs the wait step, so its output is empty and this
+      # proceeds.
       - name: Seal tomorrow's forecast
         id: seal
-        if: steps.guard.outputs.skip == 'false'
+        if: steps.guard.outputs.skip == 'false' && steps.wait.outputs.too_early != 'true'
         run: |
           for attempt in 1 2 3; do
             if python -m de_power_live.predict; then
@@ -125,17 +167,35 @@ jobs:
           done
           exit 1
 
+      # A failed seal is final only when nothing scheduled can still retry it:
+      # the gate has closed, or this is the last cron of the day, or the run was
+      # manual. Otherwise the job still fails, loudly, but writes no MISSED row,
+      # and the next scheduled run finds the day unsealed and tries again.
+      # Event values reach bash through env, never through interpolation.
       - name: Record a miss if sealing failed
         id: miss
         if: failure() && steps.seal.outcome == 'failure'
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_SCHEDULE: ${{ github.event.schedule }}
         run: |
           TARGET=$(TZ=Europe/Berlin date -d tomorrow +%Y-%m-%d)
+          GATE=$(TZ=Europe/Berlin date -d "today $GATE_LOCAL" +%s)
+          if [ "$EVENT_NAME" = "schedule" ] \
+              && [ "$EVENT_SCHEDULE" != "$LAST_SCHEDULED_CRON" ] \
+              && [ "$(date +%s)" -lt "$GATE" ]; then
+            echo "Sealing failed, but the gate is still open and a later scheduled run will retry."
+            echo "No MISSED row is written by this run."
+            echo "recorded=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           python -m de_power_live.score --record-miss "$TARGET" \
             --reason "predict job failed in run ${{ github.run_id }}"
+          echo "recorded=true" >> "$GITHUB_OUTPUT"
 
       - name: Generate track-record figure for a missed forecast
         id: figure
-        if: always() && steps.miss.outcome == 'success'
+        if: always() && steps.miss.outputs.recorded == 'true'
         run: python -m de_power_live.track_record
 
       - name: Commit

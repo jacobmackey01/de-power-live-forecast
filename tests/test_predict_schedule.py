@@ -13,10 +13,13 @@ a project dependency, and adding one to test it would be a poor bargain.
 from __future__ import annotations
 
 import re
+from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
-from de_power_live import AUCTION_CLOSE_LOCAL_HOUR
+from de_power_live import AUCTION_CLOSE_LOCAL_HOUR, MARKET_TZ
 from de_power_live.dataset import SEAL_LOCAL_HOUR
+from de_power_live.seal_wait import TOO_EARLY, decide
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PREDICT_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "predict.yml"
@@ -25,6 +28,9 @@ SEAL_TIMING_DOC = REPO_ROOT / "docs" / "seal-timing.md"
 WINDOW_RE = re.compile(r'SEAL_WINDOW_LOCAL:\s*"(\d{1,2}):(\d{2})"')
 CRON_RE = re.compile(r'cron:\s*"(\S+)\s+(\S+)\s+\S+\s+\S+\s+\S+"')
 TIMEOUT_RE = re.compile(r"timeout-minutes:\s*(\d+)")
+MAX_WAIT_RE = re.compile(r'MAX_WAIT_MINUTES:\s*"(\d+)"')
+LAST_CRON_RE = re.compile(r'LAST_SCHEDULED_CRON:\s*"(\S+)\s+(\S+)\s+\S+\s+\S+\s+\S+"')
+GATE_RE = re.compile(r'GATE_LOCAL:\s*"(\d{1,2}):(\d{2})"')
 INPUT_RE = re.compile(r"^      (\w+):$", re.MULTILINE)
 
 # Europe/Berlin is UTC+1 in winter and UTC+2 in summer. Both must hold: a cron
@@ -42,6 +48,12 @@ MAX_GAP_FROM_TRAINING_CUTOFF = 4.0
 # Slack for checkout, pip install and the seal itself, on top of the sleep.
 JOB_OVERHEAD_MINUTES = 20
 
+# The earliest cron exists to survive a slow queue. This is the uniform delay
+# the schedule must absorb, in both seasons, with the gate-margin alarm's 90
+# minutes still in hand. The 2026-08-27..09-03 delays ran from 4h30 to 12h.
+QUEUE_DELAY_TO_ABSORB_HOURS = 9.0
+MARGIN_TO_KEEP_MINUTES = 90
+
 
 def _workflow() -> str:
     return PREDICT_WORKFLOW.read_text(encoding="utf-8")
@@ -53,10 +65,28 @@ def seal_window_local_hours() -> float:
     return int(match.group(1)) + int(match.group(2)) / 60.0
 
 
-def cron_minute_hour() -> tuple[int, int]:
-    match = CRON_RE.search(_workflow())
-    assert match, "predict.yml no longer declares a cron schedule"
-    return int(match.group(1)), int(match.group(2))
+def crons() -> list[tuple[int, int]]:
+    """Every scheduled cron as (minute, hour), in UTC, as written."""
+    found = [(int(m), int(h)) for m, h in CRON_RE.findall(_workflow())]
+    assert found, "predict.yml no longer declares a cron schedule"
+    return found
+
+
+def local_start_hours(cron: tuple[int, int], offset: int) -> float:
+    """Local wall-clock hour a punctual run starts at, counted from midnight."""
+    minute, hour = cron
+    return (hour + offset) % 24 + minute / 60.0
+
+
+def last_cron() -> tuple[int, int]:
+    """The cron that starts latest in the local morning."""
+    return max(crons(), key=lambda cron: local_start_hours(cron, min(BERLIN_UTC_OFFSETS)))
+
+
+def max_wait_minutes() -> int:
+    match = MAX_WAIT_RE.search(_workflow())
+    assert match, "predict.yml no longer declares MAX_WAIT_MINUTES"
+    return int(match.group(1))
 
 
 # ---- The window itself --------------------------------------------------
@@ -106,50 +136,145 @@ def test_the_trade_off_is_documented():
 # ---- The cron, in both halves of the year -------------------------------
 
 
-def test_cron_reaches_the_window_in_both_winter_and_summer():
-    """Summer is the binding case: the same UTC cron starts an hour later local.
+def test_every_cron_starts_between_local_midnight_and_the_window():
+    """Checked in both halves of the year, for every cron.
 
-    Testing only UTC+1 would let a cron pass in winter while, in summer, firing
-    after the seal window - at which point the wait step never sleeps and the
-    seal lands at whatever hour the queue happens to deliver.
+    After local midnight, because the workflow computes the delivery day as
+    "tomorrow" at the moment the run starts: a run that could start the evening
+    before would aim at a day whose gate has already closed. Before the window,
+    because a cron that fires after it never sleeps and seals at whatever hour
+    the queue happens to deliver. Testing only UTC+1 would let a cron pass in
+    winter and break either rule in summer.
     """
-    minute, hour = cron_minute_hour()
     window = seal_window_local_hours()
-    assert hour + max(BERLIN_UTC_OFFSETS) < 24, "cron wraps past local midnight"
-    for offset in BERLIN_UTC_OFFSETS:
-        start_local = hour + offset + minute / 60.0
-        assert start_local < window, (
-            f"at UTC+{offset} the job starts {start_local:.2f} local, after the "
-            f"{window:.2f} seal window; the wait step would never sleep"
-        )
+    for cron in crons():
+        minute, hour = cron
+        for offset in BERLIN_UTC_OFFSETS:
+            # A UTC evening cron is only acceptable if it has already crossed
+            # local midnight; one in the UTC morning must not have wrapped.
+            crossed_midnight = hour + offset >= 24
+            assert crossed_midnight or hour < 12, (
+                f"cron {hour:02d}:{minute:02d} UTC starts the evening before at UTC+{offset}"
+            )
+            start_local = local_start_hours(cron, offset)
+            assert start_local < window, (
+                f"at UTC+{offset} cron {hour:02d}:{minute:02d} UTC starts {start_local:.2f} "
+                f"local, after the {window:.2f} seal window; it would never sleep"
+            )
 
 
-def test_the_longest_possible_sleep_fits_in_the_job_timeout():
-    """Winter is the binding case here: the earliest local start, longest sleep.
-
-    A sleep that outruns timeout-minutes turns a punctual run into a cancelled
-    one, which is a miss with extra steps.
-    """
-    minute, hour = cron_minute_hour()
-    window = seal_window_local_hours()
+def test_the_longest_permitted_sleep_fits_in_the_job_timeout():
+    """A sleep that outruns timeout-minutes turns a patient run into a cancelled
+    one, which is a miss with extra steps."""
     timeout = TIMEOUT_RE.search(_workflow())
     assert timeout, "predict.yml no longer declares timeout-minutes"
     timeout_minutes = int(timeout.group(1))
 
-    earliest_start = hour + min(BERLIN_UTC_OFFSETS) + minute / 60.0
-    longest_sleep = (window - earliest_start) * 60.0
-    assert longest_sleep + JOB_OVERHEAD_MINUTES <= timeout_minutes, (
-        f"longest sleep is {longest_sleep:.0f} min, which with overhead exceeds "
-        f"the {timeout_minutes} min timeout"
+    assert max_wait_minutes() + JOB_OVERHEAD_MINUTES <= timeout_minutes, (
+        f"a {max_wait_minutes()} min sleep plus overhead exceeds the "
+        f"{timeout_minutes} min timeout"
     )
     # GitHub cancels any job past six hours regardless of what is declared.
     assert timeout_minutes < 360
 
 
-def test_cron_is_off_the_hour():
+def test_the_last_cron_is_never_too_early():
+    """Winter is the binding case: the earliest local start, the longest sleep.
+
+    Earlier crons may step aside as too early, but only because a later one is
+    coming. If the last cron could also be too early, a punctual queue would
+    seal nothing at all.
+    """
+    window = seal_window_local_hours()
+    for offset in BERLIN_UTC_OFFSETS:
+        sleep = (window - local_start_hours(last_cron(), offset)) * 60.0
+        assert 0 < sleep <= max_wait_minutes(), (
+            f"at UTC+{offset} a punctual last cron would need to sleep {sleep:.0f} min, "
+            f"beyond the {max_wait_minutes()} min a job may wait"
+        )
+
+
+def test_the_declared_last_cron_is_the_last_cron():
+    """LAST_SCHEDULED_CRON decides which run may record a miss before the gate.
+
+    If it named a cron that is not in the schedule, no scheduled run would ever
+    match it, and a day on which every attempt failed before the gate would
+    leave the record without a MISSED row. If it named an earlier cron, that
+    run would write the day off while later attempts were still queued.
+    """
+    match = LAST_CRON_RE.search(_workflow())
+    assert match, "predict.yml no longer declares LAST_SCHEDULED_CRON"
+    declared = (int(match.group(1)), int(match.group(2)))
+    assert declared in crons()
+    for offset in BERLIN_UTC_OFFSETS:
+        latest = max(crons(), key=lambda cron: local_start_hours(cron, offset))
+        assert declared == latest, f"at UTC+{offset} the last cron is {latest}, not {declared}"
+
+
+def test_every_cron_is_off_the_hour():
     """On-the-hour crons sit in the most contended slot on the platform."""
-    minute, _ = cron_minute_hour()
-    assert minute != 0
+    for minute, _ in crons():
+        assert minute != 0
+
+
+def _seal_margin_minutes(delay_hours: float, day: date) -> float | None:
+    """Margin to the gate if every cron is queued for ``delay_hours``.
+
+    Replays the schedule through seal_wait.decide for the seal morning ``day``:
+    runs start in cron order, the first one that is not too early seals at the
+    later of its start and the window, and the rest are no-ops. Returns None
+    if no run seals before the gate.
+    """
+    market = ZoneInfo(MARKET_TZ)
+    gate = datetime.combine(day, time(AUCTION_CLOSE_LOCAL_HOUR), tzinfo=market).astimezone(
+        timezone.utc
+    )
+    window_text = WINDOW_RE.search(_workflow())
+    window = f"{int(window_text.group(1)):02d}:{window_text.group(2)}"
+
+    starts = []
+    for minute, hour in crons():
+        # A cron in the UTC evening fires on the previous UTC date.
+        fire_day = day - timedelta(days=1) if hour >= 12 else day
+        fired = datetime.combine(fire_day, time(hour, minute), tzinfo=timezone.utc)
+        starts.append(fired + timedelta(hours=delay_hours))
+
+    for start in sorted(starts):
+        decision = decide(start, window, max_wait_minutes())
+        if decision.action == TOO_EARLY:
+            continue
+        sealed_at = max(start, decision.window_utc)
+        if sealed_at >= gate:
+            return None
+        return (gate - sealed_at).total_seconds() / 60.0
+    return None
+
+
+def test_the_schedule_absorbs_a_slow_queue_in_both_seasons():
+    """The reason there is more than one cron.
+
+    With the single 02:12 UTC cron, the 7h30 delay seen on 2026-11-09 left 76
+    minutes. The schedule must seal with the alarm margin intact for every
+    uniform delay from none up to QUEUE_DELAY_TO_ABSORB_HOURS, winter and
+    summer, including the punctual case where the early crons step aside.
+    """
+    for day in (date(2026, 12, 1), date(2027, 7, 1)):
+        delay = 0.0
+        while delay <= QUEUE_DELAY_TO_ABSORB_HOURS:
+            margin = _seal_margin_minutes(delay, day)
+            assert margin is not None, f"{day}: no run seals with a {delay:.2f}h queue delay"
+            assert margin >= MARGIN_TO_KEEP_MINUTES, (
+                f"{day}: a {delay:.2f}h queue delay leaves only {margin:.0f} min"
+            )
+            delay += 0.25
+
+
+def test_a_punctual_queue_seals_at_the_window():
+    """The early crons must cost nothing when the queue behaves."""
+    window = seal_window_local_hours()
+    expected = (AUCTION_CLOSE_LOCAL_HOUR - window) * 60.0
+    for day in (date(2026, 12, 1), date(2027, 7, 1)):
+        assert _seal_margin_minutes(0.0, day) == expected
 
 
 # ---- Inputs and guards --------------------------------------------------
@@ -230,3 +355,52 @@ def test_the_proceed_case_is_still_reachable():
     """A guard that could never say 'proceed' would silently stop sealing."""
     workflow = _workflow()
     assert "steps.guard.outputs.skip == 'false'" in workflow
+
+
+# ---- Stepping aside, and who may record a miss --------------------------
+
+
+def test_the_seal_step_respects_too_early():
+    """A too-early run that sealed anyway would seal on the previous evening's
+    weather run, hours before the window."""
+    workflow = _workflow()
+    assert "de_power_live.seal_wait" in workflow
+    assert "steps.wait.outputs.too_early != 'true'" in workflow
+
+
+def test_the_workflow_reads_the_verdict_the_wait_actually_emits(capsys, monkeypatch):
+    """The same contract as the guard's, for the wait step.
+
+    If the grep stopped matching what seal_wait prints, grep would exit
+    non-zero and the run would fail before sealing - on every cron.
+    """
+    workflow = _workflow()
+    pattern = re.search(r"grep -E '(\^too_early[^']+)'", workflow)
+    assert pattern, "the wait step no longer greps a verdict out of seal_wait"
+    verdict = re.compile(pattern.group(1))
+
+    from de_power_live import seal_wait
+
+    monkeypatch.setattr(seal_wait, "sleep_until", lambda target: None)
+    for window in ("00:00", "23:59"):  # already past, and (almost always) too early
+        monkeypatch.setattr(
+            "sys.argv", ["seal_wait", "--window", window, "--max-wait-minutes", "1"]
+        )
+        assert seal_wait.main() == 0
+        lines = capsys.readouterr().out.splitlines()
+        assert sum(1 for line in lines if verdict.fullmatch(line)) == 1, lines
+
+
+def test_only_a_final_attempt_records_a_miss_before_the_gate():
+    """An early run that fails must leave the day to the runs behind it."""
+    workflow = _workflow()
+    assert '"$EVENT_SCHEDULE" != "$LAST_SCHEDULED_CRON"' in workflow
+    assert "steps.miss.outputs.recorded == 'true'" in workflow
+    # Event values go through env, not into the script body.
+    assert "${{ github.event.schedule }}\"" not in workflow
+
+
+def test_the_gate_in_the_workflow_is_the_gate_in_the_code():
+    match = GATE_RE.search(_workflow())
+    assert match, "predict.yml no longer declares GATE_LOCAL"
+    assert (int(match.group(1)), int(match.group(2))) == (AUCTION_CLOSE_LOCAL_HOUR, 0)
