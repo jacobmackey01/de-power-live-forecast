@@ -283,7 +283,11 @@ def test_predict_workflow_has_truthful_success_and_miss_release_paths():
     # success() from Actions, so on the failure path this step - and the Commit
     # step that keys off its outcome - were silently skipped, and the recorded
     # miss died with the runner instead of reaching the ledger.
-    assert "if: always() && steps.miss.outcome == 'success'" in generate_block
+    # It keys off the miss step's own "recorded" output rather than its outcome,
+    # because a run that is not the day's last attempt now exits that step
+    # cleanly without recording anything (see predict.yml).
+    assert "if: always() && steps.miss.outputs.recorded == 'true'" in generate_block
+    assert 'echo "recorded=true" >> "$GITHUB_OUTPUT"' in miss_block
     assert "python -m de_power_live.track_record" in generate_block
 
     assert (
@@ -328,13 +332,17 @@ def test_predict_is_scheduled_with_real_slack_before_the_gate():
     """
     workflow = PREDICT_WORKFLOW_PATH.read_text(encoding="utf-8")
 
-    match = re.search(r'cron: "(\d+) (\d+) \* \* \*"', workflow)
-    assert match, "predict cron not found or no longer a simple daily schedule"
-    minute, hour = int(match.group(1)), int(match.group(2))
+    crons = re.findall(r'cron: "(\d+) (\d+) \* \* \*"', workflow)
+    assert crons, "predict cron not found or no longer a simple daily schedule"
 
     summer_gate_utc = 10 * 60
-    slack_minutes = summer_gate_utc - (hour * 60 + minute)
-    assert slack_minutes >= 6 * 60, (
-        f"only {slack_minutes} min of slack before the 10:00 UTC summer gate"
-    )
-    assert minute != 0, "on-the-hour crons sit in the most delayed Actions slot"
+    for minute_text, hour_text in crons:
+        minute, hour = int(minute_text), int(hour_text)
+        # A cron in the UTC evening fires the day before the gate it serves.
+        fired = hour * 60 + minute - (24 * 60 if hour >= 12 else 0)
+        slack_minutes = summer_gate_utc - fired
+        assert slack_minutes >= 6 * 60, (
+            f"cron {hour:02d}:{minute:02d} UTC leaves only {slack_minutes} min of slack "
+            "before the 10:00 UTC summer gate"
+        )
+        assert minute != 0, "on-the-hour crons sit in the most delayed Actions slot"

@@ -96,13 +96,55 @@ If the queue delay ever recedes and a 10:00–11:00 local seal becomes reliable
 again, moving the window back is strictly correct and requires only editing
 `SEAL_WINDOW_LOCAL`. The test bound permits it; nothing else needs to change.
 
+## Three scheduled attempts (2026-11-09)
+
+The window was introduced on 2026-09-07, but no live seal ever landed on it.
+The single 02:12 UTC cron was queued for 4h40 to 7h30 on each of the 62 days
+sealed since, so every run started after 07:30 local and sealed on arrival,
+between 08:34 and 11:22 local. The best margin in that time is 194 minutes
+(205 on the whole record) and the worst is 37; a seal at the window would show
+270. By 2026-11-09 the run was starting 7h30 late and the seal for 2026-11-10
+landed 76 minutes before the gate.
+
+`predict.yml` now has three crons, 23:12, 00:42 and 02:12 UTC, all after local
+midnight in both halves of the year. The first run that finds the day unsealed
+and the window within reach seals it, and the guard step makes the others
+no-ops. Two rules keep the extra runs from doing harm:
+
+- **A run that is too early steps aside.** One job can sleep at most 270
+  minutes. A run further than that from the window seals nothing and leaves the
+  day to a later run (`seal_wait.py`). It does not seal on arrival, because
+  that would be a seal before 06:00 local, on the previous evening's weather
+  run. The last cron is never too early, so a punctual queue seals at the
+  window exactly as a single cron would.
+- **Only a final attempt records a miss while the gate is open.** If sealing
+  fails before 12:00 local, the run fails loudly, but only the last cron or a
+  manual run writes the MISSED row. An earlier run leaves the day unsealed for
+  the runs queued behind it. After the gate, any run records the miss.
+
+What this buys: with every cron queued for the same length of time, the day is
+sealed with at least 90 minutes in hand for any delay up to nine hours, in
+winter and summer (`tests/test_predict_schedule.py` replays this). The single
+cron left 78 minutes at 7h30. What it does not buy: the trigger is still
+GitHub's scheduled-run queue. A delay beyond about eleven hours on the earliest
+cron, or a day on which the queue drops every run, is still a miss. Only a
+trigger from outside GitHub removes that.
+
+**The seal hour moves, for real this time.** From the first seal after this
+change, forecasts are expected to be sealed at 07:30 local instead of between
+08:34 and 11:22. The 3h30 gap from the training cutoff described above was the design
+since September but is only now the practice. Seals before and after carry
+different `sealed_at_utc` hours, so the third check below should be read from
+this date, not from 2026-09-09.
+
 ## What would make this unacceptable
 
 - Evidence that the outturn aggregates carry more weight than assumed — a
   feature-importance or ablation result putting them among the dominant inputs.
 - Any need to push the window below 06:00 local, which crosses from "shifted
   aggregates" into "older weather", a real and directional loss.
-- Scoring showing systematic degradation from 2026-09-09 onward that does not
+- Scoring showing systematic degradation from the date seals actually moved to
+  the window (the first seal after 2026-11-09, not 2026-09-09) that does not
   appear before it. The ledger makes this checkable after the fact: seals before
   and after the change carry different `sealed_at_utc` hours and are otherwise
   produced by the identical frozen model.
