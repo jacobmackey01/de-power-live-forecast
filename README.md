@@ -16,6 +16,27 @@ market had already priced in.
 
 [Scored record](results/README.md) · [Frozen methodology and success criteria](PREREGISTRATION.md) · [v1 lessons and v2 plan](docs/v1-lessons.md)
 
+## Phase 2: model v2
+
+Phase 1 closed on 31 October 2026 and is judged in
+[`results/FINAL_REPORT.md`](results/FINAL_REPORT.md): price level PASS,
+negative hours PASS, intervals NULL, and nine missed days including the
+clock-change day.
+
+A second phase runs from the first v2 forecast to **28 February 2027**, under
+its own pre-registration, [`PREREGISTRATION_PHASE2.md`](PREREGISTRATION_PHASE2.md),
+frozen before that forecast. Model v2 predicts the change from the same hour
+yesterday instead of a price level, and is judged against yesterday's price,
+the harder of the two naive baselines. Its forecasts are sealed in
+[`predictions/v2/`](predictions/v2) and scored in [`results/v2/`](results/v2).
+v1 keeps sealing, unchanged, as a benchmark.
+
+What went wrong in phase 1 and what v2 does about it is in
+[`docs/v1-lessons.md`](docs/v1-lessons.md). The replay that chose the design,
+which is not evidence for it, is in [`research/v2/`](research/v2).
+
+The rest of this page describes phase 1.
+
 ## Preregistered evaluation
 
 Three calls are pre-registered:
@@ -127,7 +148,9 @@ reproducibility, and only the latter is relied on.
 
 ```
 PREREGISTRATION.md     frozen before the first prediction
+PREREGISTRATION_PHASE2.md  frozen before the first v2 prediction
 src/de_power_live/
+  v2/                  model v2: features, model, seal, scoring, report
   smard.py             SMARD client, runtime identity checks
   weather.py           Open-Meteo client, turbine power curve, national drivers
 predictions/           write-once sealed forecasts

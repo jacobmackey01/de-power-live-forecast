@@ -85,3 +85,19 @@ def test_the_margin_alarm_covers_v2():
     v2_step = alarm[alarm.index("- name: Check v2 margin to gate closure"):]
     assert "if: always()" in v2_step.split("run:", 1)[0]
 
+
+def test_a_dry_run_cannot_seal_or_record_a_miss():
+    """The rehearsal exists to be run on the live runner without touching the
+    record. If the guard still ran, a dry run would go on to seal for real."""
+    workflow = _read("predict-v2.yml")
+    assert "python -m de_power_live.v2.predict --dry-run" in workflow
+    guard = workflow[workflow.index("- name: Check whether tomorrow still needs sealing"):]
+    assert "github.event.inputs.dry_run != 'true'" in guard.split("run:", 1)[0]
+    # Every writing step depends on the guard having run.
+    for name in ("Wait for the seal window", "Seal tomorrow's forecast"):
+        step = workflow[workflow.index(f"- name: {name}"):].split("run:", 1)[0]
+        assert "steps.guard.outputs.skip == 'false'" in step
+    for name in ("Record a miss if sealing failed", "Commit"):
+        step = workflow[workflow.index(f"- name: {name}"):].split("run:", 1)[0]
+        assert "steps.seal.outcome" in step
+
