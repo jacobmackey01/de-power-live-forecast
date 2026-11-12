@@ -5,10 +5,11 @@ and prediction intervals, published before auction close and scored after settle
 The frozen model uses forward weather forecasts with realised market history;
 performance is compared with same-hour-last-week and climatological baselines.
 
-The prospective evaluation runs through **31 October 2026**. The current record
-is descriptive. The formal assessment is written automatically by the scoring
-job, as [`results/FINAL_REPORT.md`](results/FINAL_REPORT.md), once every window
-day is scored or recorded missed.
+The first prospective evaluation ran from 3 August to **31 October 2026** and
+is closed. Its formal assessment was written by the scoring job once every
+window day had been scored or recorded missed:
+[`results/FINAL_REPORT.md`](results/FINAL_REPORT.md). A second phase with a new
+model is running now, described below.
 **No tradeable edge or P&L is claimed:** these baselines do not measure what the
 market had already priced in.
 
@@ -32,7 +33,9 @@ the harder of the two naive baselines. Its forecasts are sealed in
 v1 keeps sealing, unchanged, as a benchmark.
 
 What went wrong in phase 1 and what v2 does about it is in
-[`docs/v1-lessons.md`](docs/v1-lessons.md). The replay that chose the design,
+[`docs/v1-lessons.md`](docs/v1-lessons.md). Known limits of the phase-2 record,
+including everything an independent audit found on its first day, are in
+[`docs/phase2-disclosures.md`](docs/phase2-disclosures.md). The replay that chose the design,
 which is not evidence for it, is in [`research/v2/`](research/v2).
 
 The rest of this page describes phase 1.
