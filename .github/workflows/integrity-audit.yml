@@ -15,7 +15,7 @@ name: integrity-audit
 
 on:
   workflow_run:
-    workflows: [predict, score, record-miss]
+    workflows: [predict, score, record-miss, predict-v2, score-v2]
     types: [completed]
   schedule:
     # Off the hour, and after the day's score run has settled.
@@ -55,11 +55,12 @@ jobs:
       - name: Ledger is append-only across the whole history
         id: history
         run: |
-          LEDGER=results/ledger.jsonl
           FAILED=0
 
-          # Every revision of the ledger must contain its predecessor as an
+          # Every revision of each ledger must contain its predecessor as an
           # exact line prefix. A scored day is final; a rewritten one is not.
+          for LEDGER in results/ledger.jsonl results/v2/ledger.jsonl; do
+          [ -n "$(git rev-list -1 HEAD -- "$LEDGER")" ] || continue
           PREV=""
           for REV in $(git rev-list --reverse HEAD -- "$LEDGER"); do
             if ! git cat-file -e "$REV:$LEDGER" 2>/dev/null; then
@@ -80,7 +81,8 @@ jobs:
             cp /tmp/ledger_after /tmp/ledger_before
             PREV="$REV"
           done
-          [ "$FAILED" -eq 0 ] && echo "OK: ledger append-only across $(git rev-list --count HEAD -- "$LEDGER") revision(s)."
+          [ "$FAILED" -eq 0 ] && echo "OK: $LEDGER append-only across $(git rev-list --count HEAD -- "$LEDGER") revision(s)."
+          done
 
           # Sealed predictions are write-once, with no pre-window exemption.
           TAMPERED=$(git log --diff-filter=MD --format='%H %s' --name-only -- predictions/ || true)
@@ -90,6 +92,19 @@ jobs:
             FAILED=1
           else
             echo "OK: no sealed prediction has ever been modified or deleted."
+          fi
+
+          # Phase 2: its pre-registration must have last changed before the
+          # first v2 prediction was sealed, not at or after it.
+          FIRST_V2=$(git log --diff-filter=A --format=%H --reverse -- 'predictions/v2/*.json' | head -n 1)
+          if [ -n "$FIRST_V2" ]; then
+            LAST_PREREG=$(git log -1 --format=%H -- PREREGISTRATION_PHASE2.md)
+            if [ -z "$LAST_PREREG" ] || ! git merge-base --is-ancestor "$LAST_PREREG" "$FIRST_V2^"; then
+              echo "::error::PREREGISTRATION_PHASE2.md changed at or after the first v2 prediction ($FIRST_V2)."
+              FAILED=1
+            else
+              echo "OK: PREREGISTRATION_PHASE2.md last changed before the first v2 prediction."
+            fi
           fi
 
           exit $FAILED

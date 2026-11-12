@@ -13,16 +13,23 @@ a project dependency, and adding one to test it would be a poor bargain.
 from __future__ import annotations
 
 import re
+import sys
 from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
+
+import pytest
 
 from de_power_live import AUCTION_CLOSE_LOCAL_HOUR, MARKET_TZ
 from de_power_live.dataset import SEAL_LOCAL_HOUR
 from de_power_live.seal_wait import TOO_EARLY, decide
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PREDICT_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "predict.yml"
+WORKFLOWS = REPO_ROOT / ".github" / "workflows"
+# Every test below runs against both seal workflows. predict-v2.yml is derived
+# from predict.yml and must keep every property these tests hold.
+SEAL_WORKFLOWS = ("predict.yml", "predict-v2.yml")
+PREDICT_WORKFLOW = WORKFLOWS / "predict.yml"
 SEAL_TIMING_DOC = REPO_ROOT / "docs" / "seal-timing.md"
 
 WINDOW_RE = re.compile(r'SEAL_WINDOW_LOCAL:\s*"(\d{1,2}):(\d{2})"')
@@ -53,6 +60,11 @@ JOB_OVERHEAD_MINUTES = 20
 # minutes still in hand. The 2026-08-27..09-03 delays ran from 4h30 to 12h.
 QUEUE_DELAY_TO_ABSORB_HOURS = 9.0
 MARGIN_TO_KEEP_MINUTES = 90
+
+
+@pytest.fixture(autouse=True, params=SEAL_WORKFLOWS)
+def _each_seal_workflow(request, monkeypatch):
+    monkeypatch.setattr(sys.modules[__name__], "PREDICT_WORKFLOW", WORKFLOWS / request.param)
 
 
 def _workflow() -> str:
@@ -328,7 +340,7 @@ def test_the_guard_validates_rather_than_stats_the_file():
 def test_predict_is_invoked_without_a_date_override():
     """--date would let a run seal a day other than tomorrow. It has no place here."""
     workflow = _workflow()
-    assert "de_power_live.predict" in workflow
+    assert re.search(r"python -m de_power_live\.(v2\.)?predict\b", workflow)
     assert "--date" not in workflow
 
 

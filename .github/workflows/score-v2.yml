@@ -1,0 +1,96 @@
+name: score-v2
+
+# Scores settled v2 delivery days into results/v2/. Never writes to
+# predictions/. Separate from score.yml so that neither model's scoring can
+# hold up the other's.
+#
+# Does nothing until v2 has sealed a forecast.
+
+on:
+  schedule:
+    - cron: "37 14 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: score-v2
+  cancel-in-progress: false
+
+jobs:
+  score:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check that v2 has sealed anything
+        id: sealed
+        run: |
+          if ls predictions/v2/*.json > /dev/null 2>&1 || [ -f results/v2/ledger.jsonl ]; then
+            echo "active=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No v2 forecast or ledger yet. Nothing to do."
+            echo "active=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-python@v5
+        if: steps.sealed.outputs.active == 'true'
+        with:
+          python-version: "3.12"
+
+      - if: steps.sealed.outputs.active == 'true'
+        run: python -m pip install --upgrade pip && pip install -e .
+
+      # Retried for the same reason as the seal: SMARD can drop a connection
+      # without replying. A retry appends nothing twice, since score skips
+      # every day already in the ledger.
+      - name: Score settled v2 predictions
+        if: steps.sealed.outputs.active == 'true'
+        run: |
+          for attempt in 1 2 3; do
+            if python -m de_power_live.v2.score; then
+              exit 0
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              echo "Attempt $attempt failed; retrying in 5 minutes."
+              sleep 300
+            fi
+          done
+          exit 1
+
+      # Writes results/v2/FINAL_REPORT.md once every window day is SCORED or
+      # MISSED, and nothing before. A failure here is flagged on the run but
+      # must never hold back the day's scores.
+      - name: Final assessment of the phase-2 window
+        if: steps.sealed.outputs.active == 'true'
+        continue-on-error: true
+        run: python -m de_power_live.v2.final_report
+
+      - name: Commit v2 ledger
+        if: steps.sealed.outputs.active == 'true'
+        run: |
+          if [ -n "$(git status --porcelain predictions)" ]; then
+            echo "::error::scoring changed predictions/, which it must never do"
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if [ -z "$(git status --porcelain results/v2)" ]; then
+            echo "nothing new to score"
+            exit 0
+          fi
+          git add results/v2
+          git commit -m "Score settled v2 delivery days (run ${{ github.run_id }})"
+          # Other jobs write to main too (score, and the other model's seal).
+          # A rejected push is rebased and retried rather than lost: the files
+          # this job writes are touched by no other job.
+          for attempt in 1 2 3 4; do
+            if git push; then
+              exit 0
+            fi
+            echo "Push rejected; rebasing onto the latest main and retrying."
+            git pull --rebase
+            sleep 5
+          done
+          exit 1

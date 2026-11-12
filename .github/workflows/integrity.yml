@@ -96,9 +96,39 @@ jobs:
             echo "OK: no frozen model file was modified or deleted."
           fi
 
-          # 4. The ledger is append-only: its previous contents must survive
+          # 3b. Phase 2 has its own pre-registration, frozen from the first v2
+          #     prediction onward, and v2 predictions may not exist without it.
+          V2_SEALED=$(git ls-tree -r --name-only "$HEAD" -- predictions/v2/ \
+            | grep -cE 'predictions/v2/[0-9]{4}-[0-9]{2}-[0-9]{2}\.json' || true)
+          echo "Sealed v2 predictions at HEAD: $V2_SEALED"
+          if [ "$V2_SEALED" -gt 0 ]; then
+            if ! git cat-file -e "$HEAD:PREREGISTRATION_PHASE2.md" 2>/dev/null; then
+              echo "::error::v2 predictions exist but PREREGISTRATION_PHASE2.md does not."
+              FAILED=1
+            fi
+            if git cat-file -e "$HEAD:PREREGISTRATION_PHASE2.md" 2>/dev/null \
+              && grep -q "^> \*\*DRAFT" <(git show "$HEAD:PREREGISTRATION_PHASE2.md"); then
+              echo "::error::v2 predictions exist but PREREGISTRATION_PHASE2.md is still marked DRAFT."
+              FAILED=1
+            fi
+            PREREG2=$(git diff --diff-filter=MD --name-only "$BASE" "$HEAD" -- PREREGISTRATION_PHASE2.md || true)
+            V2_BEFORE=$(git ls-tree -r --name-only "$BASE" -- predictions/v2/ 2>/dev/null \
+              | grep -cE 'predictions/v2/[0-9]{4}-[0-9]{2}-[0-9]{2}\.json' || true)
+            if [ -n "$PREREG2" ] && [ "$V2_BEFORE" -gt 0 ]; then
+              echo "::error::PREREGISTRATION_PHASE2.md was modified with $V2_BEFORE v2 prediction(s) already sealed."
+              FAILED=1
+            elif [ -n "$PREREG2" ]; then
+              echo "::error::PREREGISTRATION_PHASE2.md changed in the same push that added the first v2 prediction."
+              echo "The freeze commit must come before any v2 prediction, not with it."
+              FAILED=1
+            else
+              echo "OK: PREREGISTRATION_PHASE2.md unchanged."
+            fi
+          fi
+
+          # 4. The ledgers are append-only: previous contents must survive
           #    unchanged as a prefix of the new file.
-          LEDGER=results/ledger.jsonl
+          for LEDGER in results/ledger.jsonl results/v2/ledger.jsonl; do
           if git cat-file -e "$BASE:$LEDGER" 2>/dev/null; then
             git show "$BASE:$LEDGER" > /tmp/ledger_before
             if git cat-file -e "$HEAD:$LEDGER" 2>/dev/null; then
@@ -116,12 +146,13 @@ jobs:
                 diff /tmp/ledger_before <(head -n "$BEFORE_LINES" /tmp/ledger_after) || true
                 FAILED=1
               else
-                echo "OK: ledger prefix of $BEFORE_LINES entries preserved."
+                echo "OK: $LEDGER prefix of $BEFORE_LINES entries preserved."
               fi
             fi
           else
-            echo "OK: no prior ledger to compare."
+            echo "OK: no prior $LEDGER to compare."
           fi
+          done
 
           exit $FAILED
 
