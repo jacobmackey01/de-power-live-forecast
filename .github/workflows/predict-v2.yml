@@ -36,6 +36,11 @@ on:
         required: false
         default: true
         type: boolean
+      dry_run:
+        description: "Build the forecast and print it, but seal and record nothing"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: write
@@ -88,9 +93,17 @@ jobs:
       # reported as invalid and fails the run rather than being mistaken for
       # success, which would exit green with neither a forecast nor a MISSED row
       # and quietly drop the day out of the record. See seal_guard.py.
+      # A manual rehearsal of the whole live path on the runner: inputs are
+      # fetched, the frozen model is verified, the forecast is built and
+      # printed. Nothing is written, so a failure here records no miss. Every
+      # later step hangs off the guard, which a dry run skips.
+      - name: Rehearse the seal without writing anything
+        if: steps.frozen.outputs.active == 'true' && github.event.inputs.dry_run == 'true'
+        run: python -m de_power_live.v2.predict --dry-run
+
       - name: Check whether tomorrow still needs sealing
         id: guard
-        if: steps.frozen.outputs.active == 'true'
+        if: steps.frozen.outputs.active == 'true' && github.event.inputs.dry_run != 'true'
         run: |
           set -o pipefail
           TARGET=$(TZ=Europe/Berlin date -d tomorrow +%Y-%m-%d)
