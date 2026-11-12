@@ -199,7 +199,13 @@ jobs:
             echo "nothing to commit"
             exit 0
           fi
-          git add predictions/v2 results/v2
+          # Only one of the two exists after a first seal or a first miss, and
+          # git add refuses a path that is not there.
+          for path in predictions/v2 results/v2; do
+            if [ -e "$path" ]; then
+              git add "$path"
+            fi
+          done
           if [ "${{ steps.seal.outcome }}" = "success" ]; then
             git commit -m "Seal v2 forecast $(TZ=Europe/Berlin date -d tomorrow +%Y-%m-%d)
 
