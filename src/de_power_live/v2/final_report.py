@@ -22,13 +22,22 @@ from __future__ import annotations
 import argparse
 import json
 import math
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 import numpy as np
 from sklearn.metrics import average_precision_score
 
-from . import EVALUATION_END, LATEST_FIRST_DAY_FOR_VERDICTS, LEDGER_PATH, REPO_ROOT, RESULTS_DIR
+from . import (
+    EVALUATION_END,
+    FIRST_DELIVERY_DAY,
+    LATEST_FIRST_DAY_FOR_VERDICTS,
+    LEDGER_PATH,
+    REPO_ROOT,
+    REPORT_DUE,
+    RESULTS_DIR,
+)
+from .audit import LedgerError, check_ledger
 from .calls import QUANTILES
 from .score import load_ledger
 
@@ -67,14 +76,20 @@ def _wilson(hits: int, n: int, z: float = 1.959964) -> list[float]:
     return [centre - half, centre + half]
 
 
-def window_rows(ledger: list[dict], provisional: bool) -> tuple[list[dict], date | None, list[str]]:
-    """Ledger rows inside the window, the first window day, and days still open."""
-    if not ledger:
-        return [], None, []
+def window_rows(
+    ledger: list[dict], provisional: bool, first: date, end: date
+) -> tuple[list[dict], list[str]]:
+    """Ledger rows inside ``[first, end]`` in date order, and the days still open.
+
+    ``first`` is the delivery day of the first sealed prediction. It is passed
+    in, not read off the ledger: the earliest ledger row can be a MISSED day
+    before any forecast existed, and taking the window from it would both
+    lengthen the window and defeat the late-start rule.
+    """
+    check_ledger(ledger)
     by_day = {r["delivery_date_local"]: r for r in ledger}
-    first = date.fromisoformat(min(by_day))
     outstanding, day = [], first
-    while day <= EVALUATION_END:
+    while day <= end:
         if day.isoformat() not in by_day:
             outstanding.append(day.isoformat())
         day += timedelta(days=1)
@@ -83,8 +98,8 @@ def window_rows(ledger: list[dict], provisional: bool) -> tuple[list[dict], date
             f"{len(outstanding)} window day(s) not yet SCORED or MISSED, "
             f"from {outstanding[0]} to {outstanding[-1]}"
         )
-    inside = [r for d, r in sorted(by_day.items()) if date.fromisoformat(d) <= EVALUATION_END]
-    return inside, first, outstanding
+    inside = [r for d, r in sorted(by_day.items()) if first <= date.fromisoformat(d) <= end]
+    return inside, outstanding
 
 
 def _arrays(row: dict) -> dict[str, np.ndarray]:
@@ -98,6 +113,15 @@ def _arrays(row: dict) -> dict[str, np.ndarray]:
         for key in (name, f"p_{name}", f"base_{name}"):
             out[key] = column(key)
     out["q"] = np.array([h["q"] for h in hours], dtype=float)
+    # Every scored hour must carry the realised price and all of the sealed
+    # calls. A gap would otherwise drop out of a sum without being counted,
+    # which changes a pooled figure silently.
+    for key in ("price", "pred", "d1", "p_spike", "base_spike", "q"):
+        if not np.isfinite(out[key]).all():
+            raise LedgerError(f"{row['delivery_date_local']}: scored row has a missing or non-finite {key!r}")
+    stamps = [h["hour_utc"] for h in hours]
+    if len(set(stamps)) != len(stamps):
+        raise LedgerError(f"{row['delivery_date_local']}: scored row repeats an hour")
     return out
 
 
@@ -146,7 +170,15 @@ def _pr_auc(days: list[dict], outcome: str, score: str, base: str, draws: np.nda
     y = np.concatenate([d[outcome] for d in days]).astype(int)
     s = np.concatenate([d[score] for d in days])
     b = np.concatenate([d[base] for d in days])
-    entry = {"events": int(y.sum()), "hours": int(len(y))}
+    # Brier is defined with no event at all, and the pre-registration promises
+    # it whatever happens, so it is computed before the event count is looked at.
+    entry = {
+        "events": int(y.sum()),
+        "hours": int(len(y)),
+        "brier_model": float(np.mean((s - y) ** 2)),
+        "brier_baseline": float(np.mean((b - y) ** 2)),
+        "bootstrap_draws": int(len(draws)),
+    }
     if y.sum() == 0:
         return entry
     entry["pr_auc_model"] = float(average_precision_score(y, s))
@@ -165,28 +197,29 @@ def _pr_auc(days: list[dict], outcome: str, score: str, base: str, draws: np.nda
     boot = np.array([gap(sample) for sample in draws])
     entry["difference_ci95"] = _interval(boot)
     entry["draws_without_events"] = int(np.isnan(boot).sum())
-    entry["brier_model"] = float(np.mean((s - y) ** 2))
-    entry["brier_baseline"] = float(np.mean((b - y) ** 2))
     return entry
+
+
+def _reliability(days: list[dict], outcome: str, score: str) -> list[dict]:
+    y = np.concatenate([d[outcome] for d in days])
+    s = np.concatenate([d[score] for d in days])
+    edges = np.linspace(0, 1, 11)
+    bins = np.clip(np.digitize(s, edges[1:-1]), 0, 9)
+    return [
+        {
+            "bin": f"{edges[i]:.1f}-{edges[i + 1]:.1f}",
+            "hours": int((bins == i).sum()),
+            "mean_forecast": float(s[bins == i].mean()),
+            "observed_rate": float(y[bins == i].mean()),
+        }
+        for i in range(10)
+        if (bins == i).any()
+    ]
 
 
 def call_b(days: list[dict], draws: np.ndarray) -> dict:
     spike = _pr_auc(days, "spike", "p_spike", "base_spike", draws)
-    if spike["events"]:
-        y = np.concatenate([d["spike"] for d in days])
-        s = np.concatenate([d["p_spike"] for d in days])
-        edges = np.linspace(0, 1, 11)
-        bins = np.clip(np.digitize(s, edges[1:-1]), 0, 9)
-        spike["reliability"] = [
-            {
-                "bin": f"{edges[i]:.1f}-{edges[i + 1]:.1f}",
-                "hours": int((bins == i).sum()),
-                "mean_forecast": float(s[bins == i].mean()),
-                "observed_rate": float(y[bins == i].mean()),
-            }
-            for i in range(10)
-            if (bins == i).any()
-        ]
+    spike["reliability"] = _reliability(days, "spike", "p_spike")
     if spike["events"] < MIN_EVENTS:
         verdict = "UNDERPOWERED"
     else:
@@ -216,7 +249,9 @@ def call_c(days: list[dict], months: list[str], draws: np.ndarray) -> dict:
             "binomial_ci95": _wilson(int(hits_by_day.sum()), int(hours_by_day.sum())),
             "day_block_ci95": _interval(hits_by_day[draws].sum(axis=1) / hours_by_day[draws].sum(axis=1)),
             "mean_width": float(np.mean(q[:, hi] - q[:, lo])),
-            "within_tolerance": bool(abs(coverage - NOMINAL[name]) <= COVERAGE_TOLERANCE),
+            # Inclusive: exactly five points away is inside the band. The
+            # slack is for floating point (0.55 - 0.50 is not exactly 0.05).
+            "within_tolerance": bool(abs(coverage - NOMINAL[name]) <= COVERAGE_TOLERANCE + 1e-9),
             "by_month": by_month,
         }
     band = np.sum(truth[:, None] > q, axis=1)
@@ -235,7 +270,7 @@ def call_c(days: list[dict], months: list[str], draws: np.ndarray) -> dict:
     }
 
 
-def versus_v1(rows: list[dict], v1_dir: Path, draws_seed: int = BOOTSTRAP_SEED) -> dict | None:
+def versus_v1(rows: list[dict], v1_dir: Path, draws: int = BOOTSTRAP_DRAWS) -> dict | None:
     """Paired MAE difference on the hours both models sealed. Descriptive only."""
     diffs, hours = [], []
     for row in rows:
@@ -251,13 +286,38 @@ def versus_v1(rows: list[dict], v1_dir: Path, draws_seed: int = BOOTSTRAP_SEED) 
     if not diffs:
         return None
     diffs, hours = np.array(diffs), np.array(hours)
-    rng = np.random.default_rng(draws_seed)
-    sample = rng.integers(0, len(diffs), size=(2000, len(diffs)))
+    rng = np.random.default_rng(BOOTSTRAP_SEED)
+    sample = rng.integers(0, len(diffs), size=(draws, len(diffs)))
     return {
         "days": int(len(diffs)),
+        "bootstrap_draws": int(draws),
         "mae_difference_v2_minus_v1": float(diffs.sum() / hours.sum()),
         "ci95": _interval(diffs[sample].sum(axis=1) / hours[sample].sum(axis=1)),
     }
+
+
+def by_version(scored: list[dict], days: list[dict]) -> dict:
+    """The headline figures for each model version on its own (section 4)."""
+    out = {}
+    labels = [f"{r['model_version']} ({r['model_source_sha256'][:12]})" for r in scored]
+    for label in sorted(set(labels)):
+        subset = [d for d, name in zip(days, labels) if name == label]
+        model = sum(np.abs(d["pred"] - d["price"]).sum() for d in subset)
+        base = sum(np.abs(d["d1"] - d["price"]).sum() for d in subset)
+        hours = sum(len(d["price"]) for d in subset)
+        truth = np.concatenate([d["price"] for d in subset])
+        q = np.concatenate([d["q"] for d in subset])
+        out[label] = {
+            "days": len(subset),
+            "hours": int(hours),
+            "mae_model": float(model / hours),
+            "mae_yesterday": float(base / hours),
+            "skill_vs_yesterday": float(1 - model / base),
+            "coverage_50": float(np.mean((truth >= q[:, 1]) & (truth <= q[:, 3]))),
+            "coverage_80": float(np.mean((truth >= q[:, 0]) & (truth <= q[:, 4]))),
+            "spike_events": int(sum(d["spike"].sum() for d in subset)),
+        }
+    return out
 
 
 def build_report(
@@ -265,15 +325,21 @@ def build_report(
     provisional: bool = False,
     v1_dir: Path = V1_PREDICTIONS_DIR,
     draws: int = BOOTSTRAP_DRAWS,
+    first: date | None = None,
+    end: date | None = None,
 ) -> dict:
-    rows, first, outstanding = window_rows(ledger, provisional)
+    """The phase-2 report. ``first`` and ``end`` default to the registered
+    window; a rehearsal over another period passes its own."""
+    first = first or FIRST_DELIVERY_DAY
+    end = end or EVALUATION_END
+    rows, outstanding = window_rows(ledger, provisional, first, end)
     scored = [r for r in rows if r["status"] == "SCORED"]
     missed = [r for r in rows if r["status"] == "MISSED"]
     report: dict = {
         "provisional": provisional,
-        "window": {"first": first.isoformat() if first else None, "end": EVALUATION_END.isoformat()},
+        "window": {"first": first.isoformat(), "end": end.isoformat()},
         "days": {
-            "calendar": (EVALUATION_END - first).days + 1 if first else 0,
+            "calendar": (end - first).days + 1,
             "scored": len(scored),
             "missed": [{"day": r["delivery_date_local"], "reason": r.get("reason", "")} for r in missed],
             "outstanding": len(outstanding),
@@ -291,10 +357,11 @@ def build_report(
     report["days"]["hours"] = int(sum(len(d["price"]) for d in days))
     report["seal_margin_minutes"] = {"min": float(min(margins)), "median": float(np.median(margins))}
     report["model_versions"] = sorted({(r["model_version"], r["model_source_sha256"][:12]) for r in scored})
+    report["by_version"] = by_version(scored, days)
     report["call_a"] = call_a(days, months, resamples)
     report["call_b"] = call_b(days, resamples)
     report["call_c"] = call_c(days, months, resamples)
-    report["versus_v1"] = versus_v1(scored, v1_dir)
+    report["versus_v1"] = versus_v1(scored, v1_dir, draws)
     # Section 6: a window that starts too late is reported, not judged.
     report["late_start"] = first > LATEST_FIRST_DAY_FOR_VERDICTS
     if report["late_start"]:
@@ -314,9 +381,6 @@ def _ci(pair: list[float], fmt: str = "+.3f") -> str:
 def render_markdown(report: dict, title: str = "Final assessment, phase 2") -> str:
     out = [f"# {title}: DE-LU day-ahead forecasting record, model v2", ""]
     window, days = report["window"], report["days"]
-    if window["first"] is None:
-        out += ["No v2 forecast has been sealed or recorded yet.", ""]
-        return "\n".join(out)
 
     out += [
         f"Evaluation window **{window['first']} to {window['end']}**, judged against the criteria "
@@ -343,15 +407,28 @@ def render_markdown(report: dict, title: str = "Final assessment, phase 2") -> s
     for m in days["missed"]:
         out.append(f"  - {m['day']}: {m['reason']}")
     if "call_a" not in report:
-        out += ["", "No scored day yet.", ""]
+        out += [
+            "",
+            "No day has been scored yet. A forecast is scored about 30 hours after its delivery day "
+            "ends, so sealed forecasts can exist before anything appears here.",
+            "",
+        ]
         return "\n".join(out)
     margin = report["seal_margin_minutes"]
     out += [
         f"- Seal margin before gate closure: minimum {margin['min']:.0f} min, median {margin['median']:.0f} min",
         "- Model version(s): " + ", ".join(f"`{v}` (source `{h}`)" for v, h in report["model_versions"]),
         f"- Bootstrap: {report['bootstrap']['draws']:,} draws, block = one power day, seed {report['bootstrap']['seed']}",
-        "",
     ]
+    if report.get("generated_at_utc"):
+        line = f"- Generated {report['generated_at_utc'][:16].replace('T', ' ')} UTC; due by {report['due_by']}."
+        if report.get("late"):
+            line += (
+                " **This report is late.** It could not be written until every window day was "
+                "scored or recorded missed; the last of them was settled after the due date."
+            )
+        out.append(line)
+    out.append("")
 
     a, b, c = report["call_a"], report["call_b"], report["call_c"]
     label = "So far" if report["provisional"] else "Verdict"
@@ -402,6 +479,20 @@ def render_markdown(report: dict, title: str = "Final assessment, phase 2") -> s
         f"| {month} | {m['days']} | {m['mae_model']:.2f} | {m['mae_yesterday']:.2f} | {m['skill_vs_yesterday']:+.3f} |"
         for month, m in a["by_month"].items()
     ]
+    versions = report.get("by_version", {})
+    if len(versions) > 1:
+        out += [
+            "",
+            "More than one model version sealed in this window. Each on its own (the figures above pool them):",
+            "",
+            "| Version | Days | Model MAE | Yesterday MAE | Skill | 50% coverage | 80% coverage |",
+            "|---|---|---|---|---|---|---|",
+        ]
+        out += [
+            f"| `{name}` | {v['days']} | {v['mae_model']:.2f} | {v['mae_yesterday']:.2f} | "
+            f"{v['skill_vs_yesterday']:+.3f} | {v['coverage_50']:.3f} | {v['coverage_80']:.3f} |"
+            for name, v in versions.items()
+        ]
     v1 = report.get("versus_v1")
     if v1:
         out += [
@@ -416,19 +507,22 @@ def render_markdown(report: dict, title: str = "Final assessment, phase 2") -> s
         "28 delivery days before it. The baseline is how often that wall-clock hour was above the "
         "same threshold over the same days. Both were sealed with the forecast."
     )
-    if "pr_auc_model" in spike:
-        out += [
-            "",
-            f"Brier score: model {spike['brier_model']:.4f}, baseline {spike['brier_baseline']:.4f}. "
-            f"Bootstrap draws without an event: {spike['draws_without_events']}.",
-            "",
-            "| Forecast P(spike) | Hours | Mean forecast | Observed rate |",
-            "|---|---|---|---|",
-        ]
-        out += [
-            f"| {r['bin']} | {r['hours']} | {r['mean_forecast']:.3f} | {r['observed_rate']:.3f} |"
-            for r in spike["reliability"]
-        ]
+    out += [
+        "",
+        f"Brier score: model {spike['brier_model']:.4f}, baseline {spike['brier_baseline']:.4f}."
+        + (
+            f" Bootstrap draws without an event: {spike['draws_without_events']}."
+            if "draws_without_events" in spike
+            else " No spike hour occurred, so PR-AUC is undefined."
+        ),
+        "",
+        "| Forecast P(spike) | Hours | Mean forecast | Observed rate |",
+        "|---|---|---|---|",
+    ]
+    out += [
+        f"| {r['bin']} | {r['hours']} | {r['mean_forecast']:.3f} | {r['observed_rate']:.3f} |"
+        for r in spike["reliability"]
+    ]
     out += ["", "Phase 1's targets, reported without a verdict:", "", "| Target | Events | PR-AUC model | PR-AUC climatology |", "|---|---|---|---|"]
     for entry in b["descriptive"].values():
         scores = (
@@ -486,14 +580,20 @@ def main(argv: list[str] | None = None) -> int:
     if args.provisional:
         print(render_markdown(build_report(ledger, provisional=True), title="Running record, phase 2"))
         return 0
+    # Written once. A verdict that could be regenerated later is one that could
+    # be regenerated differently.
+    if REPORT_PATH.exists():
+        print(f"{REPORT_PATH.name} already exists; leaving it as written")
+        return 0
     try:
         report = build_report(ledger)
     except WindowIncomplete as exc:
         print(f"window not complete, nothing written: {exc}")
         return 0
-    if report["window"]["first"] is None:
-        print("no v2 ledger yet, nothing written")
-        return 0
+    now = datetime.now(timezone.utc)
+    report["generated_at_utc"] = now.isoformat()
+    report["due_by"] = REPORT_DUE.isoformat()
+    report["late"] = now.date() > REPORT_DUE
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     REPORT_PATH.write_text(render_markdown(report), encoding="utf-8")
     JSON_PATH.write_text(json.dumps(report, indent=2, default=str), encoding="utf-8")
