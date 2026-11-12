@@ -25,6 +25,7 @@ from ..dataset import target_hours_for
 from ..model import climatology_probability
 from ..predict import SealError, auction_close_utc, seal
 from . import MODEL_VERSION, MODELS_DIR, PREDICTIONS_DIR
+from .audit import check_seal
 from .calls import (
     DESCRIPTIVE_THRESHOLDS,
     POOL_DAYS,
@@ -36,10 +37,14 @@ from .calls import (
     spike_threshold,
 )
 from .features import assert_no_leakage, build_dataset, local_grid, slot_index
-from .inputs import LiveInputs, fetch_live_inputs
+from .inputs import InputError, LiveInputs, check_prices, fetch_live_inputs
 from .model import V2Model, load_warm_start
 
 SCHEMA_VERSION = 2
+# A forecast finished this close to the gate is refused. Its timestamp would be
+# before the gate, but it could not be committed and pushed before it, and a
+# forecast that becomes public after the auction is not a prediction.
+PUBLISH_BUFFER = pd.Timedelta(minutes=5)
 
 
 def live_errors(
@@ -92,6 +97,13 @@ def build_prediction(
         )
 
     leakage = assert_no_leakage(inputs.prices, now_utc, target)
+    # Checked here as well as at the fetch, so that no route to a seal can hand
+    # the features a price series with a hole in it. They would fill a missing
+    # 02:00 on any day, and drop a missing day from a 28-day window, in silence.
+    try:
+        price_check = check_prices(inputs.prices)
+    except InputError as exc:
+        raise SealError(f"price history is not complete: {exc}") from exc
 
     model = V2Model.load(model_dir)  # verifies artefacts and source against the manifest
     ds = build_dataset(inputs.prices, inputs.weather, last_target_day=target)
@@ -102,10 +114,17 @@ def build_prediction(
             f"no anchor or scale for some hour of {target.date()}: the seal day's prices or the "
             "seven days before them are incomplete"
         )
+    # Every input the model reads must be present. The model itself would
+    # accept a gap, and the feature grid would quietly fill a missing 02:00 on
+    # any day, so an incomplete input is refused here, before either can.
     X, _ = ds.design()
-    weather_gaps = X.loc[slots, ["wind_cf", "solar_radiation", "temperature"]].isna().sum().sum()
-    if weather_gaps:
-        raise SealError(f"weather forecast does not cover every hour of {target.date()}")
+    gaps = X.loc[slots, model.feature_columns].isna().sum()
+    gaps = gaps[gaps > 0]
+    if len(gaps):
+        raise SealError(
+            f"{len(gaps)} model input(s) are incomplete for {target.date()}: "
+            + ", ".join(f"{name} ({int(n)}h)" for name, n in gaps.head(6).items())
+        )
 
     pred = model.predict(ds, [target]).reindex(slots)
     scale = ds.scale.reindex(slots)
@@ -129,7 +148,21 @@ def build_prediction(
 
     hours = target_hours_for(target)
     hour_slots = slot_index(hours)
-    sealed_at = (sealed_at_utc or datetime.now(timezone.utc)).isoformat()
+    # The gate was checked before the inputs were read. Building takes time, so
+    # it is checked again at the moment the forecast is finished: a build that
+    # started at 10:59:59 and ended at 11:00:01 is late, whatever it started as.
+    finished = pd.Timestamp(sealed_at_utc or datetime.now(timezone.utc))
+    if finished >= close:
+        raise SealError(
+            f"forecast for {target.date()} was finished at {finished.isoformat()}, at or after the "
+            f"gate at {close.isoformat()}. Refusing to seal it."
+        )
+    if close - finished < PUBLISH_BUFFER:
+        raise SealError(
+            f"forecast for {target.date()} was finished {(close - finished).total_seconds():.0f}s before "
+            f"the gate, too late to be published before it. Refusing to seal it."
+        )
+    sealed_at = finished.isoformat()
 
     def number(value: float, digits: int = 3):
         return None if pd.isna(value) else round(float(value), digits)
@@ -156,7 +189,7 @@ def build_prediction(
             }
         )
 
-    return {
+    payload = {
         "schema_version": SCHEMA_VERSION,
         "bidding_zone": BIDDING_ZONE,
         "delivery_date_local": str(target.date()),
@@ -173,7 +206,7 @@ def build_prediction(
         "model_trained_at_utc": model.manifest["trained_at_utc"],
         "information_cutoff_utc": now_utc.isoformat(),
         "leakage_check": leakage,
-        "price_check": inputs.price_check,
+        "price_check": price_check,
         "weather_coverage": inputs.weather_coverage,
         "scale_eur_mwh": number(scale.iloc[0], 4),
         "spike_threshold_eur_mwh": number(threshold, 3),
@@ -185,6 +218,13 @@ def build_prediction(
             "See PREREGISTRATION_PHASE2.md for the calls being made and what counts as a null."
         ),
     }
+
+    # The last thing before a forecast can be written: hold it to the same
+    # checks the audit and the scoring job will apply to it afterwards.
+    problems = check_seal(payload, str(target.date()), model.manifest)
+    if problems:
+        raise SealError("built forecast is not a valid seal: " + "; ".join(problems))
+    return payload
 
 
 def main() -> int:

@@ -35,9 +35,17 @@ class SealError(RuntimeError):
 
 
 def auction_close_utc(target_day: pd.Timestamp) -> pd.Timestamp:
-    """Gate closure for delivery on ``target_day``: 12:00 local on the day before."""
+    """Gate closure for delivery on ``target_day``: 12:00 local on the day before.
+
+    Noon on the wall clock. Until 2026-11-12 this added twelve elapsed hours to
+    local midnight, which is 11:00 on a 25-hour day and 13:00 on a 23-hour day.
+    The sealed v1 file for 2026-10-26 therefore records its gate an hour early
+    (10:00 UTC, not 11:00) and its margin 60 minutes short. The error was on the
+    safe side that day. On a 23-hour day it would have allowed a seal up to an
+    hour after the real gate; none has occurred since the record began.
+    """
     day_before = pd.Timestamp(target_day).tz_localize(None).normalize() - pd.Timedelta(days=1)
-    local = day_before.tz_localize(MARKET_TZ) + pd.Timedelta(hours=AUCTION_CLOSE_LOCAL_HOUR)
+    local = (day_before + pd.Timedelta(hours=AUCTION_CLOSE_LOCAL_HOUR)).tz_localize(MARKET_TZ)
     return local.tz_convert("UTC")
 
 

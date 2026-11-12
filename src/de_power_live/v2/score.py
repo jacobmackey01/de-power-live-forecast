@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import argparse
 import json
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 import numpy as np
@@ -20,12 +20,29 @@ import pandas as pd
 
 from .. import MARKET_TZ
 from ..smard import SmardClient
-from . import LEDGER_PATH, MODEL_VERSION, PREDICTIONS_DIR, RESULTS_DIR
+from . import FIRST_DELIVERY_DAY, LEDGER_PATH, MODEL_VERSION, MODELS_DIR, PREDICTIONS_DIR, RESULTS_DIR
+from .audit import check_ledger, check_seal, days_due
 from .calls import DESCRIPTIVE_THRESHOLDS, QUANTILES
 
 # Same settle margin as phase 1: a day is scored once it ended this long ago.
 SETTLE_AFTER_HOURS = 30
 SUMMARY_PATH = RESULTS_DIR / "SUMMARY.md"
+# A day with no forecast is entered as MISSED once its gate closed this long
+# ago. The margin is far longer than any push takes, so a forecast that was
+# sealed in time cannot still be on its way.
+RECONCILE_GRACE = timedelta(minutes=45)
+RECONCILED_REASON = (
+    "No v2 forecast was published before gate closure, and the seal job recorded no miss at the "
+    "time. Entered afterwards by the scoring job, which checks every due delivery day."
+)
+# SMARD serves prices in weekly blocks. Fetch far enough back for the oldest
+# unscored day, however long scoring has been down.
+MIN_PRICE_BLOCKS = 6
+MAX_PRICE_BLOCKS = 60
+
+
+class InvalidSeal(RuntimeError):
+    """Raised when a sealed file is not something the record can rest on."""
 
 
 class IncompleteOutturn(RuntimeError):
@@ -44,8 +61,21 @@ def append_ledger(entry: dict, path: Path = LEDGER_PATH) -> None:
         handle.write(json.dumps(entry, sort_keys=True) + "\n")
 
 
-def score_day(payload: dict, prices: pd.Series) -> dict:
-    """One SCORED ledger row from a sealed payload and realised prices."""
+def score_day(payload: dict, prices: pd.Series, check_model: bool = True) -> dict:
+    """One SCORED ledger row from a sealed payload and realised prices.
+
+    ``check_model`` holds the file to the frozen model in models/v2. A rehearsal
+    seals with a scratch model and turns it off; nothing else should.
+    """
+    # Scoring is where a sealed file starts to count, so it is where the file is
+    # held to what a seal must be: the right hours, once each, sealed before its
+    # own gate, by the frozen model. A file that fails is not scored at all.
+    manifest_path = MODELS_DIR / "MANIFEST.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8")) if manifest_path.exists() and check_model else None
+    problems = check_seal(payload, payload.get("delivery_date_local", ""), manifest)
+    if problems:
+        raise InvalidSeal("; ".join(problems))
+
     hours = pd.DatetimeIndex([pd.Timestamp(p["hour_utc"]) for p in payload["predictions"]])
     truth = prices.reindex(hours).to_numpy(dtype=float)
     if np.isnan(truth).any():
@@ -125,6 +155,32 @@ def miss_entry(day: str, reason: str) -> dict:
     }
 
 
+def reconcile(ledger: list[dict], predictions_dir: Path, now: datetime, first: date = FIRST_DELIVERY_DAY) -> list[dict]:
+    """MISSED rows for due days that have neither a forecast nor a ledger row.
+
+    The seal job records a miss when its seal step fails. It cannot when the
+    job never ran, was cancelled, or failed somewhere else, and until this was
+    added such a day left no trace at all. This looks at the calendar instead:
+    every delivery day from the first one, once its gate has closed.
+
+    It invents nothing. It records that no forecast exists, which is the same
+    thing a miss recorded at the time would say.
+    """
+    have = {row["delivery_date_local"] for row in ledger}
+    out = []
+    for day in days_due(now, first, RECONCILE_GRACE):
+        key = day.isoformat()
+        if key in have or (Path(predictions_dir) / f"{key}.json").exists():
+            continue
+        out.append(miss_entry(key, RECONCILED_REASON))
+    return out
+
+
+def price_blocks_for(oldest_pending: date, today: date) -> int:
+    weeks = (today - oldest_pending).days // 7 + 3
+    return max(MIN_PRICE_BLOCKS, min(MAX_PRICE_BLOCKS, weeks))
+
+
 def write_summary(ledger: list[dict]) -> None:
     # Imported here: the report module imports this one for the ledger reader.
     from .final_report import build_report, render_markdown
@@ -142,9 +198,13 @@ def main() -> int:
     args = parser.parse_args()
 
     ledger = load_ledger()
+    check_ledger(ledger)  # a repeated day is refused before anything is added to it
     already = {e["delivery_date_local"] for e in ledger}
 
     if args.record_miss:
+        # Appends one row and nothing else. The summary is rewritten by the
+        # scoring job, so that this path and that one never edit the same file
+        # and a rebase between them cannot conflict.
         day = args.record_miss
         if day in already:
             print(f"{day} already in the v2 ledger; leaving it alone")
@@ -152,43 +212,60 @@ def main() -> int:
         if (PREDICTIONS_DIR / f"{day}.json").exists():
             print(f"{day} was in fact sealed; refusing to record a miss")
             return 0
-        entry = miss_entry(day, args.reason)
-        append_ledger(entry)
-        write_summary([*ledger, entry])
+        append_ledger(miss_entry(day, args.reason))
         print(f"recorded MISSED for {day}: {args.reason}")
         return 0
 
-    files = sorted(PREDICTIONS_DIR.glob("[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9].json"))
-    pending = [p for p in files if p.stem not in already]
-    if not pending:
-        print("nothing new to score")
-        return 0
-
-    prices = SmardClient().fetch_frame(["price_da"], n_blocks=6)["price_da"].dropna()
     now = pd.Timestamp.now(tz="UTC")
-    scored = 0
-    for path in pending:
-        day = pd.Timestamp(path.stem)
-        day_end = (day + pd.Timedelta(days=1)).tz_localize(MARKET_TZ).tz_convert("UTC")
-        if now < day_end + pd.Timedelta(hours=SETTLE_AFTER_HOURS):
-            continue
-        payload = json.loads(path.read_text(encoding="utf-8"))
-        try:
-            entry = score_day(payload, prices)
-        except IncompleteOutturn as exc:
-            print(f"{path.stem}: {exc}; will retry on the next run")
-            continue
-        print(f"{path.stem}: MAE {entry['day']['mae_model']:.2f} vs yesterday "
-              f"{entry['day']['mae_same_hour_yesterday']:.2f}, cov80 {entry['day']['coverage_80']:.2f}")
+    changed = False
+    for entry in reconcile(ledger, PREDICTIONS_DIR, now.to_pydatetime()):
+        print(f"{entry['delivery_date_local']}: no forecast and no miss on record; entering MISSED")
         if not args.dry_run:
             append_ledger(entry)
         ledger.append(entry)
-        scored += 1
+        already.add(entry["delivery_date_local"])
+        changed = True
 
-    if scored and not args.dry_run:
+    files = sorted(PREDICTIONS_DIR.glob("[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9].json"))
+    pending = [p for p in files if p.stem not in already]
+    settled = []
+    for path in pending:
+        day_end = (pd.Timestamp(path.stem) + pd.Timedelta(days=1)).tz_localize(MARKET_TZ).tz_convert("UTC")
+        if now >= day_end + pd.Timedelta(hours=SETTLE_AFTER_HOURS):
+            settled.append(path)
+
+    invalid: list[str] = []
+    scored = 0
+    if settled:
+        blocks = price_blocks_for(date.fromisoformat(settled[0].stem), now.date())
+        prices = SmardClient().fetch_frame(["price_da"], n_blocks=blocks)["price_da"].dropna()
+        for path in settled:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            try:
+                entry = score_day(payload, prices)
+            except IncompleteOutturn as exc:
+                print(f"{path.stem}: {exc}; will retry on the next run")
+                continue
+            except InvalidSeal as exc:
+                print(f"::error::{path.stem}: sealed file is not valid and was not scored: {exc}")
+                invalid.append(path.stem)
+                continue
+            print(f"{path.stem}: MAE {entry['day']['mae_model']:.2f} vs yesterday "
+                  f"{entry['day']['mae_same_hour_yesterday']:.2f}, cov80 {entry['day']['coverage_80']:.2f}")
+            # Appended day by day, so a failure on a later day cannot take an
+            # earlier day's score down with it.
+            if not args.dry_run:
+                append_ledger(entry)
+            ledger.append(entry)
+            scored += 1
+            changed = True
+
+    # Rewritten whenever there is a ledger, not only when this run added to it:
+    # a miss recorded by the seal job changes the record without passing here.
+    if ledger and not args.dry_run:
         write_summary(ledger)
-    print(f"scored {scored} day(s)")
-    return 0
+    print(f"scored {scored} day(s)" + (", ledger changed" if changed else ""))
+    return 1 if invalid else 0
 
 
 if __name__ == "__main__":

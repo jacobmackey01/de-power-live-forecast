@@ -23,7 +23,7 @@ import pandas as pd
 from .. import MARKET_TZ
 from ..dataset import fetch_history
 from ..predict import seal
-from .features import nominal_seal_utc
+from .features import SEAL_LOCAL
 from .final_report import build_report, render_markdown
 from .inputs import LiveInputs
 from .predict import build_prediction
@@ -55,13 +55,14 @@ def rehearse(
     """Seal and score every day in ``days``; return the ledger rows."""
     ledger = []
     for target in days:
-        now = nominal_seal_utc(target)
+        # The seal window on the wall clock of the day before the target.
+        now = (target - pd.Timedelta(days=1) + SEAL_LOCAL).tz_localize(MARKET_TZ).tz_convert("UTC")
         payload = build_prediction(
             inputs_as_of(prices, weather, now), now,
             model_dir=model_dir, predictions_dir=work_dir, sealed_at_utc=now,
         )
         seal(payload, work_dir)
-        ledger.append(score_day(payload, prices))
+        ledger.append(score_day(payload, prices, check_model=False))
     return ledger
 
 
@@ -90,7 +91,13 @@ def main() -> int:
         if args.keep:
             (root / "ledger.jsonl").write_text("\n".join(json.dumps(r, sort_keys=True) for r in ledger) + "\n")
         print()
-        print(render_markdown(build_report(ledger, provisional=True, draws=2000), title="Rehearsal"))
+        report = build_report(
+            ledger, provisional=True, draws=2000,
+            first=pd.Timestamp(args.first).date(), end=pd.Timestamp(args.last).date(),
+        )
+        print("REHEARSAL ON PAST DATA. Not a live record: nothing below is a result, and any PASS is "
+              "the report's logic applied to development data.\n")
+        print(render_markdown(report, title="Rehearsal"))
     return 0
 
 

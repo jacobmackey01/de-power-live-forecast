@@ -30,6 +30,11 @@ FETCH_PAUSE_SECONDS = 20.0
 # [-500, 4000] EUR/MWh, the harmonised auction limits, for the whole history;
 # anything outside means the series is not what it claims to be.
 PRICE_BOUNDS = (-500.0, 4000.0)
+# Every price the features, the scale, the 28-day spike threshold and the error
+# pool can reach is within this many days of the newest one. All of them must
+# be present. The history back to mid-2024 has no missing hour, so this refuses
+# nothing that has ever actually occurred.
+RECENT_DAYS = 30
 
 
 class InputError(RuntimeError):
@@ -71,22 +76,33 @@ class LiveInputs:
 
 
 def check_prices(prices: pd.Series) -> dict:
-    """Refuse a price series that is empty, gappy at the end or out of bounds."""
+    """Refuse a price series that is empty, has a hole or a repeat, or is out of bounds."""
     if prices.empty:
         raise InputError("SMARD returned no day-ahead prices")
     low, high = float(prices.min()), float(prices.max())
     if low < PRICE_BOUNDS[0] or high > PRICE_BOUNDS[1]:
         raise InputError(f"day-ahead prices span [{low}, {high}], outside {PRICE_BOUNDS}")
-    recent = prices[prices.index >= prices.index.max() - pd.Timedelta(days=35)]
+    recent = prices[prices.index >= prices.index.max() - pd.Timedelta(days=RECENT_DAYS)]
     expected = pd.date_range(recent.index.min(), recent.index.max(), freq="h")
-    missing = int(len(expected) - len(recent))
+    absent = expected.difference(recent.index)
+    missing = int(len(absent))
+    if recent.index.has_duplicates:
+        raise InputError("day-ahead prices repeat an hour")
+    if missing:
+        # Hours are counted in UTC, where no day has a gap, so any missing hour
+        # is a real hole. The features would fill or skip it without complaint.
+        raise InputError(
+            f"{missing} hour(s) of day-ahead prices are missing in the last {RECENT_DAYS} days, "
+            f"first at {absent[0].isoformat()}"
+        )
     return {
         "n_prices": int(len(prices)),
         "first_utc": prices.index.min().isoformat(),
         "last_utc": prices.index.max().isoformat(),
         "min": low,
         "max": high,
-        "missing_hours_last_35_days": missing,
+        "missing_hours_recent": missing,
+        "recent_days_checked": RECENT_DAYS,
         "ok": True,
     }
 
@@ -115,6 +131,10 @@ def fetch_live_inputs() -> LiveInputs:
     def forecast():
         client = V2WeatherClient()
         drivers, coverage = client.national_drivers()
+        # The v1 client carries on with fewer sites and reweights the rest. The
+        # frozen weights are part of the model, so v2 needs all of them.
+        if coverage.get("sites_returned") != coverage.get("sites_requested"):
+            raise InputError(f"weather returned for only some sites: {coverage.get('sites_failed')}")
         return client, drivers, coverage
 
     meteo, weather, coverage = _retry("Open-Meteo", forecast)

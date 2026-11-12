@@ -299,3 +299,18 @@ def test_sealed_file_is_valid_json(tmp_path: Path):
     payload = {"delivery_date_local": "2026-08-03", "predictions": [], "model_version": "v1"}
     path = seal(payload, directory=tmp_path)
     assert json.loads(path.read_text(encoding="utf-8"))["model_version"] == "v1"
+
+
+def test_the_gate_is_noon_on_the_wall_clock_on_clock_change_days():
+    """Twelve elapsed hours after local midnight is 11:00 on a 25-hour day and
+    13:00 on a 23-hour day. The gate is at 12:00 on the clock on both. Until
+    2026-11-12 this function returned the elapsed version, and on a 23-hour day
+    would have accepted a seal up to an hour after the real gate."""
+    # Delivery 2026-10-26: gate on the 25-hour day, 12:00 CET = 11:00 UTC.
+    assert auction_close_utc(pd.Timestamp("2026-10-26")) == pd.Timestamp("2026-10-25 11:00", tz="UTC")
+    # Delivery 2027-03-29: gate on the 23-hour day, 12:00 CEST = 10:00 UTC.
+    assert auction_close_utc(pd.Timestamp("2027-03-29")) == pd.Timestamp("2027-03-28 10:00", tz="UTC")
+    # Ordinary days are unchanged.
+    assert auction_close_utc(pd.Timestamp("2026-08-02")) == pd.Timestamp("2026-08-01 10:00", tz="UTC")
+    assert auction_close_utc(pd.Timestamp("2026-12-02")) == pd.Timestamp("2026-12-01 11:00", tz="UTC")
+

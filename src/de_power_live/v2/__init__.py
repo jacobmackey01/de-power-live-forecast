@@ -23,9 +23,16 @@ MODELS_DIR = REPO_ROOT / "models" / "v2"
 RESULTS_DIR = REPO_ROOT / "results" / "v2"
 LEDGER_PATH = RESULTS_DIR / "ledger.jsonl"
 
+# The window opens with the first sealed v2 prediction. That is now a fact, not
+# a rule to be evaluated: predictions/v2/2026-11-13.json, sealed 2026-11-12
+# 09:46 UTC in commit 82d4f1e. The report takes the opening day from here, not
+# from the first ledger row, which could be a MISSED day (audit finding, 12 Nov).
+FIRST_DELIVERY_DAY = date(2026, 11, 13)
 # The phase-2 evaluation window ends here, inclusive. No extension.
 EVALUATION_END = date(2027, 2, 28)
 # The window end is fixed, so a late start shortens it. If the first v2 forecast
 # is for a delivery day after this, phase 2 is reported with no verdicts
 # (PREREGISTRATION_PHASE2.md section 6).
 LATEST_FIRST_DAY_FOR_VERDICTS = date(2026, 12, 15)
+# Scoring waits 30 hours after the last window day, plus a day of slack.
+REPORT_DUE = date(2027, 3, 3)
