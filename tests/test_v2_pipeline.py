@@ -293,6 +293,37 @@ def test_pooled_skill_is_pooled_over_hours_not_averaged_over_days(rehearsals, mo
     assert report["call_a"]["vs_yesterday"]["skill"] == pytest.approx(1 - model / base)
 
 
+def test_a_late_start_is_reported_without_verdicts(rehearsals, monkeypatch, tmp_path):
+    """The rehearsal blocks start in October, before the cut-off, so they get
+    verdicts. Move the cut-off earlier and the same ledger must get none."""
+    ledger = rehearsals["autumn_2026"]["ledger"]
+    monkeypatch.setattr(final_report, "EVALUATION_END", date(2026, 10, 27))
+    on_time = final_report.build_report(ledger, v1_dir=tmp_path, draws=100)
+    assert on_time["late_start"] is False
+    assert on_time["call_a"]["verdict"] in {"PASS", "NULL"}
+
+    monkeypatch.setattr(final_report, "LATEST_FIRST_DAY_FOR_VERDICTS", date(2026, 10, 13))
+    late = final_report.build_report(ledger, v1_dir=tmp_path, draws=100)
+    assert late["late_start"] is True
+    for call in ("call_a", "call_b", "call_c"):
+        assert late[call]["verdict"] == final_report.NO_VERDICT
+        assert late[call]["verdict_if_on_time"] == on_time[call]["verdict"]
+    # The numbers themselves are untouched.
+    assert late["call_a"]["vs_yesterday"] == on_time["call_a"]["vs_yesterday"]
+    assert "**No verdicts.**" in final_report.render_markdown(late)
+    assert "**No verdicts.**" not in final_report.render_markdown(on_time)
+
+
+def test_the_late_start_cut_off_is_the_one_in_the_pre_registration():
+    from pathlib import Path
+
+    from de_power_live.v2 import EVALUATION_END, LATEST_FIRST_DAY_FOR_VERDICTS
+
+    text = (Path(__file__).resolve().parents[1] / "PREREGISTRATION_PHASE2.md").read_text(encoding="utf-8")
+    assert f"after {LATEST_FIRST_DAY_FOR_VERDICTS.isoformat()}" in text
+    assert f"**{EVALUATION_END.isoformat()}**" in text
+
+
 def test_an_empty_ledger_renders_without_error():
     report = final_report.build_report([], provisional=True)
     assert "No v2 forecast" in final_report.render_markdown(report)

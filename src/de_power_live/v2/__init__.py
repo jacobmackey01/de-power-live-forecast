@@ -25,3 +25,7 @@ LEDGER_PATH = RESULTS_DIR / "ledger.jsonl"
 
 # The phase-2 evaluation window ends here, inclusive. No extension.
 EVALUATION_END = date(2027, 2, 28)
+# The window end is fixed, so a late start shortens it. If the first v2 forecast
+# is for a delivery day after this, phase 2 is reported with no verdicts
+# (PREREGISTRATION_PHASE2.md section 6).
+LATEST_FIRST_DAY_FOR_VERDICTS = date(2026, 12, 15)

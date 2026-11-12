@@ -91,3 +91,36 @@ def test_every_committed_seal_records_its_margin():
     for path in sealed_files(REPO_ROOT / "predictions"):
         delivery, margin = read_margin(path)
         assert margin > 0, f"{delivery} was sealed at or after gate closure"
+
+
+# ---- A second model -------------------------------------------------------------
+
+
+def test_the_alarm_reads_the_directory_it_is_pointed_at(tmp_path, capsys):
+    """v2 seals into predictions/v2. An alarm that kept reading predictions/
+    would report v1's margin under v2's name."""
+    from de_power_live import gate_margin
+
+    _seal(tmp_path, "2026-12-01", 270.0)
+    _seal(tmp_path, "2026-12-02", 40.0)
+    assert gate_margin.main(["--predictions-dir", str(tmp_path)]) == 1
+    out = capsys.readouterr().out
+    assert "CRITICAL" in out and "2026-12-02" in out
+
+
+def test_a_model_that_has_not_started_does_not_raise_the_alarm(tmp_path, capsys):
+    from de_power_live import gate_margin
+
+    assert gate_margin.main(["--predictions-dir", str(tmp_path / "v2"), "--allow-empty"]) == 0
+    assert gate_margin.main(["--predictions-dir", str(tmp_path), "--allow-empty"]) == 0
+    assert "nothing to check" in capsys.readouterr().out
+    # Without the flag an empty record is still a failure, as it always was.
+    assert gate_margin.main(["--predictions-dir", str(tmp_path)]) == 1
+
+
+def test_allow_empty_does_not_silence_a_real_warning(tmp_path):
+    from de_power_live import gate_margin
+
+    _seal(tmp_path, "2026-12-01", 60.0)
+    assert gate_margin.main(["--predictions-dir", str(tmp_path), "--allow-empty"]) == 1
+

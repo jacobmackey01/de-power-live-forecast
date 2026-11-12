@@ -97,7 +97,7 @@ def assess(readings: list[tuple[str, float]], warn_minutes: float) -> dict:
     }
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Check remaining margin to gate closure")
     parser.add_argument(
         "--warn-minutes",
@@ -106,9 +106,26 @@ def main() -> int:
         help=f"warn below this many minutes of margin (default {DEFAULT_WARN_MINUTES:.0f})",
     )
     parser.add_argument("--json", action="store_true", help="emit the report as JSON")
-    args = parser.parse_args()
+    parser.add_argument(
+        "--predictions-dir",
+        type=Path,
+        default=PREDICTIONS_DIR,
+        help="directory of sealed predictions to read (default: predictions/)",
+    )
+    parser.add_argument(
+        "--allow-empty",
+        action="store_true",
+        help="exit 0 when the directory holds no sealed prediction yet",
+    )
+    args = parser.parse_args(argv)
 
-    report = assess(collect(), args.warn_minutes)
+    # A model that has not sealed anything yet has no margin to lose. Without
+    # this the alarm for a second model would fire every day before it starts.
+    if args.allow_empty and not (args.predictions_dir.is_dir() and sealed_files(args.predictions_dir)):
+        print(f"no sealed predictions in {args.predictions_dir} yet; nothing to check")
+        return 0
+
+    report = assess(collect(args.predictions_dir), args.warn_minutes)
 
     if args.json:
         print(json.dumps(report, indent=2))

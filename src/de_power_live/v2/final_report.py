@@ -28,7 +28,7 @@ from pathlib import Path
 import numpy as np
 from sklearn.metrics import average_precision_score
 
-from . import EVALUATION_END, LEDGER_PATH, REPO_ROOT, RESULTS_DIR
+from . import EVALUATION_END, LATEST_FIRST_DAY_FOR_VERDICTS, LEDGER_PATH, REPO_ROOT, RESULTS_DIR
 from .calls import QUANTILES
 from .score import load_ledger
 
@@ -44,6 +44,9 @@ NOMINAL = {"80": 0.80, "50": 0.50}
 INTERVAL_COLUMNS = {"80": (0, 4), "50": (1, 3)}
 PIT_EXPECTED = np.diff([0.0, *QUANTILES, 1.0])
 DESCRIPTIVE = (("negative", "< 0 EUR/MWh"), ("below_10", "< 10 EUR/MWh"))
+
+
+NO_VERDICT = "NO VERDICT"
 
 
 class WindowIncomplete(RuntimeError):
@@ -292,6 +295,12 @@ def build_report(
     report["call_b"] = call_b(days, resamples)
     report["call_c"] = call_c(days, months, resamples)
     report["versus_v1"] = versus_v1(scored, v1_dir)
+    # Section 6: a window that starts too late is reported, not judged.
+    report["late_start"] = first > LATEST_FIRST_DAY_FOR_VERDICTS
+    if report["late_start"]:
+        for call in ("call_a", "call_b", "call_c"):
+            report[call]["verdict_if_on_time"] = report[call]["verdict"]
+            report[call]["verdict"] = NO_VERDICT
     return report
 
 
@@ -346,6 +355,14 @@ def render_markdown(report: dict, title: str = "Final assessment, phase 2") -> s
 
     a, b, c = report["call_a"], report["call_b"], report["call_c"]
     label = "So far" if report["provisional"] else "Verdict"
+    if report.get("late_start"):
+        out += [
+            f"**No verdicts.** The first v2 forecast was for {window['first']}, after "
+            f"{LATEST_FIRST_DAY_FOR_VERDICTS.isoformat()}. The pre-registration (section 6) says a "
+            "window that starts this late is reported descriptively only. The results below are "
+            "complete, and none of them is a pass or a null.",
+            "",
+        ]
     spike = b["spike"]
     b_result = (
         f"{spike['pr_auc_model']:.3f} vs {spike['pr_auc_baseline']:.3f}, difference "
