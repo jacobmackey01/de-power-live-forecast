@@ -1,0 +1,21 @@
+== 3 Aug to 10 Nov 2026 (fitted once on target days up to 2026-08-01)
+  skill vs yesterday, with_outturn               +0.440   MAE 22.352
+  skill vs yesterday, trained_with_served_blank  +0.439   MAE 22.397
+  skill vs yesterday, without_outturn            +0.430   MAE 22.739
+  skill vs yesterday, weekly                     +0.446   MAE 22.092
+  paired MAE difference, weekly refit minus single fit:       -0.260 EUR/MWh, 95% CI [-0.784, +0.271], 100 days
+  paired MAE difference, without outturn minus with:           +0.387 EUR/MWh, 95% CI [-0.274, +1.134], 100 days
+  paired MAE difference, served blank minus served complete:   +0.045 EUR/MWh, 95% CI [-0.679, +0.764], 100 days
+
+== 21 Nov 2025 to 28 Feb 2026 (fitted once on target days up to 2025-11-19)
+  skill vs yesterday, with_outturn               +0.404   MAE 13.592
+  skill vs yesterday, trained_with_served_blank  +0.355   MAE 14.697
+  skill vs yesterday, without_outturn            +0.385   MAE 14.015
+  skill vs yesterday, weekly                     +0.401   MAE 13.654
+  paired MAE difference, weekly refit minus single fit:       +0.062 EUR/MWh, 95% CI [-0.320, +0.458], 100 days
+  paired MAE difference, without outturn minus with:           +0.423 EUR/MWh, 95% CI [+0.024, +0.844], 100 days
+  paired MAE difference, served blank minus served complete:   +1.105 EUR/MWh, 95% CI [+0.552, +1.649], 100 days
+
+Blank = solar and onshore-wind outturn inputs set to missing at prediction time, which is
+what a live seal would have had: on 2026-11-11 SMARD had published them only up to the
+previous morning. Load was available and is left in place.

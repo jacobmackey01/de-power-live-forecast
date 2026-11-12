@@ -47,25 +47,38 @@ against "same hour yesterday" (0 = no better, 1 = perfect).
 | v2 unscaled, weekly refit | 16.4 | 28.2 | 26.3 | 27.3 | 24.1 | +0.40 |
 | **v2 scaled, fitted once** | 16.5 | 25.9 | 24.4 | 22.4 | 22.4 | **+0.44** |
 | v2 scaled, weekly refit | 16.6 | 25.6 | 24.3 | 23.3 | 22.4 | +0.44 |
+| v2 scaled, weekly refit on the last 365 days | 16.9 | 25.4 | 23.0 | 22.7 | 21.9 | +0.45 |
+
+The last row scored best and was not chosen: its lead over the single fit is
+well inside the noise (see below), and a single fit is simpler to freeze.
 
 - v2 scaled, fitted once on data to 1 August: skill +0.440, 95% interval
-  [+0.382, +0.489]. October and November together: +0.431 [+0.338, +0.509].
-- November alone (11 days): +0.236 [+0.003, +0.343]. Positive, but the weakest
-  month and a short one.
-- Against v1 on the days v1 sealed: 17.5 EUR/MWh lower error [12.9, 22.3].
-- v2 beat yesterday's price on 83% of days.
+  [+0.382, +0.489] (`out/price_replay.log`).
+- Against v1 on the 91 days both have: 17.7 EUR/MWh lower error, 95% interval
+  [13.4, 22.6] (`out/rehearsal_aug_nov_2026.md`).
+- November is the weakest month: +0.24 over the 10 days in the table.
+- Three figures were computed from the hourly replay file after the run and
+  are not in a committed log: October and November together +0.431
+  [+0.338, +0.509]; November over 11 days +0.236 [+0.003, +0.343]; v2 better
+  than yesterday's price on 83% of days. Treat them as unverified.
 - The level bias is gone: when yesterday's price was above 250 EUR/MWh, v2 was
   about 1 too low on average, where v1 run through the same replay was 60 too
   low.
 
-Three things the table settles:
+What the table suggests. These are readings of a replay, not controlled
+experiments: the variants differ from v1 in target, scaling, lags, calendar and
+weather inputs at once, so no single change is isolated.
 
-1. **Removing the level is what matters.** Refitting v1's design every week
-   helps (+0.22) but still loses badly in November.
-2. **Refitting adds nothing once the level is gone.** Fitted once and refitted
-   weekly are the same to two decimals, here and last winter.
-3. **Scaling helps when the level moves** (+0.44 against +0.40) and costs
-   nothing when it does not.
+1. **The price level looks like the main problem.** Refitting v1's design
+   every week helps (+0.22) but still loses badly in November, and the
+   level-free variants do not.
+2. **No gain from refitting was detected.** The paired difference in daily
+   error between a weekly refit and a single fit is -0.26 EUR/MWh
+   [-0.78, +0.27] on this window and +0.06 [-0.32, +0.46] last winter
+   (`out/followup_checks.log`). Both intervals span zero. That is no evidence
+   of a difference; it is not a demonstration that the two are equivalent.
+3. **Scaling scored better when the level moved** (+0.44 against +0.40) and
+   the same last winter, when it did not.
 
 ## Last winter, as a check
 
@@ -131,17 +144,31 @@ at 09:00 Berlin found solar and onshore-wind outturns published only up to
 08:00 the previous morning. Training history has them complete, so a model
 trained on them would have been served a blank at every live seal.
 
-Skill against yesterday, fitted once:
+Skill against yesterday, fitted once, from `run_checks.py`
+(`out/followup_checks.log`):
 
-| | Aug-Nov 2026 | Last winter |
+| | 3 Aug to 10 Nov 2026 | Last winter |
 |---|---|---|
-| With the inputs, as replayed | +0.439 | +0.385 |
-| Trained with them, blank at the seal (what live would have been) | +0.441 | +0.288 |
-| Without them | +0.434 | +0.396 |
+| With the inputs, complete, as replayed | +0.440 | +0.404 |
+| Trained with them, solar and onshore wind blank at the seal | +0.439 | +0.355 |
+| Without them | +0.430 | +0.385 |
 
-They add nothing when present and cost a quarter of the skill over a winter
-when absent. v2 does not use them. v1 has the same skew
-(`docs/v1-lessons.md`, section 8).
+- **They help a little when present.** Leaving them out costs about 0.4
+  EUR/MWh: +0.39 [-0.27, +1.13] on this window, +0.42 [+0.02, +0.84] last
+  winter.
+- **Served blank, a model trained on them does worse than one that never had
+  them.** Last winter the blank cost 1.1 EUR/MWh [0.55, 1.65], about 8% of the
+  error. On this window it made no detectable difference.
+
+So v2 gives up a small replay gain to avoid an input it would not have had
+live. v1 has the skew (`docs/v1-lessons.md`, section 8).
+
+An earlier version of this section, and the comment at the top of the frozen
+`v2/features.py`, said the inputs "add nothing measurable" and that the blank
+costs "about a quarter of the skill over a winter" (+0.385 to +0.288). Those
+figures came from a run that was not committed and are not reproduced by the
+committed experiment above. The direction is the same; the sizes were
+overstated in one case and understated in the other.
 
 ## Through the production code
 
@@ -163,22 +190,32 @@ November 2026 is the weakest month for call A: +0.186 over 10 days.
 
 ## What the replay cannot tell us
 
-- **Weather.** The replay uses Open-Meteo's archive of past forecasts, not the
-  exact forecast available at each seal. Running frozen v1 through the same
-  replay gives an error of 40.3 against 40.4 for v1 as sealed live, so the
-  flattery is small, but it is not zero hour by hour (the two differ by 7.9 on
-  average).
+- **Weather. The replay knew more than a live seal would have.** It uses
+  Open-Meteo's Historical Forecast archive, which stitches together the first
+  few hours of each successive model run. For a delivery day that is weather
+  forecast a few hours ahead. A live seal has the forecast made the morning
+  before, 17 to 41 hours ahead. So every replay figure in this folder was
+  produced with better weather than the model will have live, and the model
+  was trained on that better weather too. **The size of the effect on v2 is
+  unknown.** Frozen v1 run through the same replay scores 40.3 against 40.4 as
+  sealed live, but v1 leans on weather less than v2 does and that comparison
+  changes other inputs at the same time, so it does not bound the effect on
+  v2. Expect live skill to be lower than the replay's. A matched experiment
+  with forecasts as issued belongs to a later model version.
 - **A different regime.** The window contains one large step up in prices. A
   step down, or a winter scarcity spike, is untested.
-- **Selection.** Five variants were compared on this window and the best is
-  quoted. The gaps between the scaled variants are well inside the noise.
+- **Selection.** Five variants were compared on this window. The one chosen is
+  the simplest of the three scaled variants, not the best-scoring, and the
+  gaps between those three are well inside the noise.
+- **Seal hour.** The first research pass (`lib.py`) assumed a 07:30 seal.
+  Production seals at 07:40. No v2 input depends on the hour.
 
 ## Decisions this points to
 
 | Decision | Recommendation | Why |
 |---|---|---|
 | Headline hurdle for call A | Same hour yesterday | Last week is beaten by 0.62 and tells us nothing |
-| Model | Scaled change-from-yesterday, fitted once and frozen | Refitting adds nothing; one frozen artefact keeps phase 1's integrity check |
+| Model | Scaled change-from-yesterday, fitted once and frozen | No gain from refitting was detected; one frozen artefact keeps phase 1's integrity check |
 | Fuel prices | Leave out | Yesterday's price already carries the fuel level |
 | Intervals | Last 28 days of scaled errors, pooled | Inside the band in both periods; simplest to audit |
 | Call C verdict | Pooled coverage within 5 points, monthly coverage reported | Monthly coverage drifts more than 5 points |
@@ -189,6 +226,8 @@ November 2026 is the weakest month for call A: +0.186 over 10 days.
 
 - `lib.py`: features, model, replay, as used in the first research pass.
 - `run_price.py`, `run_calls.py`, `run_winter.py`: the three experiments.
+- `run_checks.py`: two follow-up checks asked for by the independent audit of
+  2026-11-12 (weekly against single fit, and the outturn inputs).
 - `out/*.log`: their full output.
 - `out/rehearsal_*.md`: the production-code rehearsals.
 - `fetch.py`: downloads the history into `cache/` (not committed).

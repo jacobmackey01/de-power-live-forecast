@@ -106,10 +106,11 @@ own 30-hour settle margin means the last window day cannot be scored before
 ## 4. Intervals were well calibrated for summer only (call C)
 
 The 80% interval caught about 81% of outturns in August, then about 58% in
-September and about 53% in October. Outturns landed above the 90th percentile
+September and about 53% in October (as it stood on 2026-10-28, when this was
+written; the final October figure is 50%). Outturns landed above the 90th percentile
 roughly three times as often as they should. The mid-October price rise was
 forecast far too low (average daily bias near -48 EUR/MWh from 2026-10-15
-onward), and from 2026-10-16 to 2026-10-18 no hour fell inside the 80%
+to the time of writing; -51 over 15 to 31 October once the month was complete), and from 2026-10-16 to 2026-10-18 no hour fell inside the 80%
 interval.
 
 The split-conformal calibration was fitted once, on the last 20% of training
@@ -188,13 +189,14 @@ on complete history scores the same as v1 as sealed (40.3 against 40.4 EUR/MWh
 over the same 91 days). It is still a train/serve skew that sat in the live
 record for the whole of phase 1.
 
-**v2:** uses no outturn data at all. In the replay those inputs add nothing
-measurable when present, and a model trained with them and served a blank loses
-about a quarter of its skill over a winter. A probe of what is actually
+**v2:** uses no outturn data at all. In the replay those inputs help a little
+when present (about 0.4 EUR/MWh), and a model trained with them and served a
+blank does worse than one that never had them (about 1.1 EUR/MWh over last
+winter). Figures and their intervals are in `research/v2/README.md`. A probe of what is actually
 published at the seal hour belongs next to every input, not only the ones known
 to be late.
 
-## 9. The level was the real problem with call A
+## 9. The price level looks like the main problem with call A
 
 Section 5 put October's weak result down to missing fuel and temperature
 drivers. The November record showed something more basic. v1 predicts price
@@ -205,7 +207,8 @@ price under 50) to -70 (over 250), and from 1 to 6 November it was 92 EUR/MWh
 too low on average, six times worse than repeating yesterday's price.
 
 **v2:** predicts the change from the same hour yesterday, sees only price
-differences, and scales both by the last week's average price. Refitting v1's
-design every week does not fix it; removing the level does
-(`research/v2/README.md`).
+differences, and scales both by the last week's average price. In the replay,
+refitting v1's design every week does not remove the bias and the level-free
+design does. That supports the explanation without proving it: v2 differs from
+v1 in several ways at once (`research/v2/README.md`).
 
