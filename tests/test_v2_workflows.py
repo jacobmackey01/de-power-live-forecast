@@ -75,3 +75,13 @@ def test_integrity_covers_the_phase_2_record():
     assert "predict-v2, score-v2" in audit
     assert "results/v2/ledger.jsonl" in audit
     assert "PREREGISTRATION_PHASE2.md" in audit
+
+
+def test_the_margin_alarm_covers_v2():
+    alarm = _read("gate-margin.yml")
+    assert "workflows: [predict, predict-v2]" in alarm
+    assert "--predictions-dir predictions/v2 --allow-empty" in alarm
+    # The v2 check must run even when the v1 check has just failed.
+    v2_step = alarm[alarm.index("- name: Check v2 margin to gate closure"):]
+    assert "if: always()" in v2_step.split("run:", 1)[0]
+

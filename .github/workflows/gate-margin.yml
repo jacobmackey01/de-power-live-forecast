@@ -17,7 +17,7 @@ name: gate-margin
 
 on:
   workflow_run:
-    workflows: [predict]
+    workflows: [predict, predict-v2]
     types: [completed]
   schedule:
     # Off the hour, after the day's predict run has had every chance to land.
@@ -56,4 +56,16 @@ jobs:
           PYTHONPATH: src
         run: |
           python -m de_power_live.gate_margin \
+            --warn-minutes "${{ github.event.inputs.warn_minutes || '90' }}"
+
+      # The same alarm for model v2, which seals from its own job on its own
+      # crons and can lose its margin independently. Runs whatever the step
+      # above concluded, and passes quietly until v2 has sealed something.
+      - name: Check v2 margin to gate closure
+        if: always()
+        env:
+          PYTHONPATH: src
+        run: |
+          python -m de_power_live.gate_margin \
+            --predictions-dir predictions/v2 --allow-empty \
             --warn-minutes "${{ github.event.inputs.warn_minutes || '90' }}"

@@ -1,9 +1,9 @@
 # Pre-registration, phase 2: live day-ahead forecasting record (DE-LU), model v2
 
-> **DRAFT, not frozen.** Written 2026-11-11 for Jacob's review. To freeze:
-> settle the three items under "Still to decide" at the end, delete this box
-> and that section, and commit. CI refuses any v2 prediction while this box is
-> here, and refuses any change to this file once a v2 prediction exists.
+> **DRAFT, not frozen.** Written 2026-11-11, choices settled 2026-11-12.
+> Nothing is left open. To freeze: delete this box and commit, before any v2
+> prediction. CI refuses any v2 prediction while this box is here, and refuses
+> any change to this file once a v2 prediction exists.
 
 This document is committed and pushed *before* any v2 prediction is generated.
 Its git commit timestamp is the evidence that the calls below were declared in
@@ -186,6 +186,9 @@ from 0.81 in August to 0.50 in October.
   or a manual one.
 - No v2 input depends on the seal hour, so a late seal uses the same
   information as a punctual one.
+- A margin alarm checks, after every v2 seal and once a day, how long before
+  the gate the newest v2 forecast was sealed, and fails below 90 minutes. It
+  is the same alarm v1 has, pointed at `predictions/v2/`.
 
 ## 6. Evaluation window and stopping rule
 
@@ -195,10 +198,19 @@ from 0.81 in August to 0.50 in October.
   on 2027-02-28. Scoring waits 30 hours for settlement, so it can first be
   scored on 2027-03-02. With a day of slack, the report is due by
   **2027-03-03**. If it lands later, it says so and why.
+- **A late start.** The end is fixed, so a late first seal shortens the window.
+  If the first sealed v2 prediction is for a delivery day after 2026-12-15,
+  phase 2 still runs to 2027-02-28 and is reported in full, but every call is
+  reported descriptively, with no verdict.
 - **No clock change in the window.** The next is 2027-03-28. The local-calendar
   lags are therefore tested in phase 2 only by rehearsal on synthetic and
   recorded inputs (`tests/test_v2_pipeline.py`, `v2/rehearse.py`), not live.
   This document does not claim otherwise.
+- **After the window: 2027-03-28.** v2 keeps sealing after the window closes.
+  The report will be followed by an addendum stating whether v2 sealed and
+  scored the 23-hour day 2027-03-28. It is an operational check with no
+  verdict, declared now so that it cannot be added or dropped depending on how
+  the day goes.
 
 ## 7. What would count as a null
 
@@ -249,16 +261,3 @@ coverage 0.474/0.780 and 0.498/0.792.
 These are development figures. They chose the design and are not evidence for
 it. Nothing sealed before this document's freeze commit counts toward any
 verdict.
-
----
-
-## Still to decide (delete this section when freezing)
-
-1. **A late start.** The window end is fixed, so a late first seal shortens it.
-   Proposed: if the first v2 seal is for a delivery day after 2026-12-15, phase
-   2 runs but every call is reported descriptively, with no verdict.
-2. **The 2027-03-28 clock change.** Proposed: declare now, as a post-window
-   operational check with no verdict, that the report will be followed by an
-   addendum stating whether v2 sealed and scored the 23-hour day.
-3. **A seal alert.** v1 has a margin alarm; v2 does not yet. Either build one
-   before the freeze or say here that there is none.
