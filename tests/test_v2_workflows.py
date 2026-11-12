@@ -3,10 +3,14 @@ by tests/test_predict_schedule.py, which runs against both seal workflows."""
 
 from __future__ import annotations
 
+import os
 import re
 import subprocess
+import sys
 import textwrap
+from datetime import date, datetime, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -109,16 +113,60 @@ def test_a_dry_run_cannot_seal_or_record_a_miss():
 # ---- The commit step, actually run ------------------------------------------------
 
 
-def _commit_script(seal_outcome: str) -> str:
+def _commit_script() -> str:
     """The Commit step of predict-v2.yml as a shell script."""
     workflow = _read("predict-v2.yml")
     block = workflow[workflow.index("      - name: Commit"):]
     script = textwrap.dedent(block.split("run: |\n", 1)[1])
-    return script.replace("${{ steps.seal.outcome }}", seal_outcome).replace("${{ github.run_id }}", "1")
+    assert "${{" not in script, "the commit script takes its inputs from env, not from interpolation"
+    return script
+
+
+def _run_commit(cwd: Path, seal_outcome: str, target: date) -> subprocess.CompletedProcess:
+    """Run the commit step as the workflow would, with `python` able to import the package."""
+    src = Path(__file__).resolve().parents[1] / "src"
+    env = {
+        **os.environ,
+        "PATH": f"{Path(sys.executable).parent}{os.pathsep}{os.environ['PATH']}",
+        "PYTHONPATH": str(src),
+        "SEAL_OUTCOME": seal_outcome,
+        "EVENT_NAME": "schedule",
+        "RUN_ID": "1",
+        "TARGET": target.isoformat(),
+    }
+    return subprocess.run(["bash", "-e", "-c", _commit_script()], cwd=cwd, capture_output=True, text=True, env=env)
+
+
+def _berlin_today() -> date:
+    return datetime.now(ZoneInfo("Europe/Berlin")).date()
+
+
+# The gate for the day after tomorrow is tomorrow at noon: always still open.
+# The gate for today was yesterday at noon: always closed.
+def _open_target() -> date:
+    return _berlin_today() + timedelta(days=2)
+
+
+def _closed_target() -> date:
+    return _berlin_today()
 
 
 def _git(cwd: Path, *args: str) -> str:
     return subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True).stdout
+
+
+def _scratch_repo(tmp_path: Path) -> Path:
+    """A clone with one commit pushed to a bare remote, as the runner's checkout is."""
+    remote, work = tmp_path / "remote.git", tmp_path / "work"
+    _git(tmp_path, "init", "-q", "--bare", str(remote))
+    _git(tmp_path, "clone", "-q", str(remote), str(work))
+    _git(work, "config", "user.name", "t")
+    _git(work, "config", "user.email", "t@example.invalid")
+    (work / "README").write_text("x")
+    _git(work, "add", "README")
+    _git(work, "commit", "-q", "-m", "init")
+    _git(work, "push", "-q", "origin", "HEAD")
+    return work
 
 
 @pytest.mark.parametrize(
@@ -134,25 +182,15 @@ def _git(cwd: Path, *args: str) -> str:
     ],
 )
 def test_the_commit_step_commits_whatever_was_written(tmp_path, written, seal_outcome, expected_subject):
-    remote, work = tmp_path / "remote.git", tmp_path / "work"
-    _git(tmp_path, "init", "-q", "--bare", str(remote))
-    _git(tmp_path, "clone", "-q", str(remote), str(work))
-    _git(work, "config", "user.name", "t")
-    _git(work, "config", "user.email", "t@example.invalid")
-    (work / "README").write_text("x")
-    _git(work, "add", "README")
-    _git(work, "commit", "-q", "-m", "init")
-    _git(work, "push", "-q", "origin", "HEAD")
+    work = _scratch_repo(tmp_path)
 
     for name in written:
         path = work / name
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("{}")
 
-    result = subprocess.run(
-        ["bash", "-e", "-c", _commit_script(seal_outcome)], cwd=work, capture_output=True, text=True
-    )
-    assert result.returncode == 0, result.stderr
+    result = _run_commit(work, seal_outcome, _open_target())
+    assert result.returncode == 0, result.stdout + result.stderr
     assert _git(work, "log", "-1", "--format=%s").startswith(expected_subject)
     assert sorted(_git(work, "show", "--name-only", "--format=", "HEAD").split()) == sorted(written)
     # And it reached the remote, which is the whole point of the step.
@@ -162,6 +200,92 @@ def test_the_commit_step_commits_whatever_was_written(tmp_path, written, seal_ou
 
 def test_the_commit_step_does_nothing_when_nothing_was_written(tmp_path):
     _git(tmp_path, "init", "-q")
-    result = subprocess.run(["bash", "-e", "-c", _commit_script("success")], cwd=tmp_path, capture_output=True, text=True)
+    result = _run_commit(tmp_path, "success", _open_target())
     assert result.returncode == 0 and "nothing to commit" in result.stdout
+
+
+def test_a_forecast_is_not_published_once_its_gate_has_closed(tmp_path):
+    """Audit finding: the gate was checked when the build started and never
+    again, so a forecast could be built in time and pushed after the auction.
+    The file's own timestamp would still say it was early."""
+    work = _scratch_repo(tmp_path)
+    path = work / "predictions" / "v2" / f"{_closed_target()}.json"
+    path.parent.mkdir(parents=True)
+    path.write_text("{}")
+    before = _git(work, "rev-parse", "HEAD")
+
+    result = _run_commit(work, "success", _closed_target())
+    assert result.returncode == 1
+    assert "cannot be published before it" in result.stdout
+    assert _git(work, "rev-parse", "HEAD") == before  # nothing committed
+    assert _git(work, "rev-parse", "@{u}") == before  # nothing pushed
+
+
+def test_a_miss_is_still_recorded_after_the_gate(tmp_path):
+    """The gate stops forecasts, not the record of their absence."""
+    work = _scratch_repo(tmp_path)
+    path = work / "results" / "v2" / "ledger.jsonl"
+    path.parent.mkdir(parents=True)
+    path.write_text('{"status": "MISSED"}\n')
+    result = _run_commit(work, "failure", _closed_target())
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert _git(work, "log", "-1", "--format=%s").startswith("Record missed v2 forecast")
+
+
+def test_two_jobs_appending_to_the_v2_ledger_both_survive_a_rebase(tmp_path):
+    """The seal job appends a MISSED row and the scoring job appends scores, to
+    the same file, from separate checkouts. Without the union rule in
+    .gitattributes the second push is rejected, the rebase conflicts, and one
+    job's row is lost with its runner."""
+    root = Path(__file__).resolve().parents[1]
+    first = _scratch_repo(tmp_path)
+    (first / ".gitattributes").write_text((root / ".gitattributes").read_text())
+    ledger = first / "results" / "v2" / "ledger.jsonl"
+    ledger.parent.mkdir(parents=True)
+    ledger.write_text('{"delivery_date_local": "2026-11-13", "status": "SCORED"}\n')
+    _git(first, "add", "-A")
+    _git(first, "commit", "-q", "-m", "one day")
+    _git(first, "push", "-q", "origin", "HEAD")
+
+    second = tmp_path / "second"
+    _git(tmp_path, "clone", "-q", str(tmp_path / "remote.git"), str(second))
+    _git(second, "config", "user.name", "t")
+    _git(second, "config", "user.email", "t@example.invalid")
+
+    with ledger.open("a") as handle:
+        handle.write('{"delivery_date_local": "2026-11-14", "status": "SCORED"}\n')
+    _git(first, "commit", "-q", "-am", "score")
+    _git(first, "push", "-q", "origin", "HEAD")
+
+    with (second / "results" / "v2" / "ledger.jsonl").open("a") as handle:
+        handle.write('{"delivery_date_local": "2026-11-15", "status": "MISSED"}\n')
+    _git(second, "commit", "-q", "-am", "miss")
+    rejected = subprocess.run(["git", "push", "-q", "origin", "HEAD"], cwd=second, capture_output=True)
+    assert rejected.returncode != 0
+    _git(second, "pull", "-q", "--rebase")
+    _git(second, "push", "-q", "origin", "HEAD")
+
+    lines = (second / "results" / "v2" / "ledger.jsonl").read_text().splitlines()
+    assert sorted(lines) == sorted(
+        '{"delivery_date_local": "%s", "status": "%s"}' % pair
+        for pair in (("2026-11-13", "SCORED"), ("2026-11-14", "SCORED"), ("2026-11-15", "MISSED"))
+    )
+    assert lines[0].endswith('"2026-11-13", "status": "SCORED"}')  # the old row is still the prefix
+
+
+def test_a_built_forecast_is_kept_even_if_it_cannot_be_committed():
+    workflow = _read("predict-v2.yml")
+    step = workflow[workflow.index("- name: Keep a copy of the sealed forecast"):].split("- name:", 2)[1]
+    assert "actions/upload-artifact@" in step
+    assert "if: always() && steps.seal.outcome == 'success'" in step
+    assert "predictions/v2/${{ steps.guard.outputs.target }}.json" in step
+    # Before the commit, so a failing commit cannot prevent it.
+    assert workflow.index("Keep a copy of the sealed forecast") < workflow.index("- name: Commit")
+
+
+def test_the_alarm_input_never_reaches_the_script_as_text():
+    alarm = _read("gate-margin.yml")
+    for block in alarm.split("run: |")[1:]:
+        assert "${{" not in block.split("- name:")[0]
+    assert "--expect-current" in alarm
 
