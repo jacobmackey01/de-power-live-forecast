@@ -1,0 +1,210 @@
+name: predict-v2
+
+# Seals tomorrow's v2 forecast before the day-ahead gate closes. Phase 2 of the
+# record: PREREGISTRATION_PHASE2.md.
+#
+# The same shape as predict.yml, and for the same reasons, which are set out
+# there and in docs/seal-timing.md: three crons after local midnight, a wait
+# for a fixed local seal window, early runs that step aside, and a MISSED row
+# written before the gate only by the last cron or a manual run.
+#
+# What differs:
+#
+#   - It seals model v2 into predictions/v2/ and records misses in
+#     results/v2/ledger.jsonl. v1 keeps sealing from predict.yml, unchanged, as
+#     the benchmark. Neither job reads or writes the other's files, and one
+#     failing does not excuse the other.
+#   - The window is ten minutes after v1's, so the two jobs do not push at the
+#     same moment. Both retry a rejected push after rebasing.
+#   - It does nothing until models/v2/MANIFEST.json exists. The pipeline can be
+#     merged, reviewed and rehearsed before the model is frozen, and it cannot
+#     record a miss for a model that does not exist yet.
+#   - A MISSED row carries the error that caused it, not only the run id.
+#
+# No model input depends on the seal hour (v2 uses no outturn data), so unlike
+# v1 the window is purely an operational choice.
+
+on:
+  schedule:
+    - cron: "22 23 * * *"
+    - cron: "52 0 * * *"
+    - cron: "22 2 * * *"
+  workflow_dispatch:
+    inputs:
+      skip_wait:
+        description: "Seal immediately instead of waiting for the seal window"
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: predict-v2
+  cancel-in-progress: false
+
+env:
+  # Anchored in local market time so it holds its distance from both the gate
+  # and the training cutoff across the October DST change.
+  SEAL_WINDOW_LOCAL: "07:40"
+  # Longest sleep one job can afford: the timeout below, less setup, the seal
+  # and its retries. A run further than this from the window steps aside.
+  MAX_WAIT_MINUTES: "270"
+  # The cron whose run is the day's last scheduled attempt. Only that run (or a
+  # manual one) records a miss while the gate is still open.
+  LAST_SCHEDULED_CRON: "22 2 * * *"
+  GATE_LOCAL: "12:00"
+
+jobs:
+  seal:
+    runs-on: ubuntu-latest
+    # Covers MAX_WAIT_MINUTES plus the run itself, and stays well inside the 6h
+    # job ceiling.
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: python -m pip install --upgrade pip && pip install -e .
+
+      # Inert until the model is frozen. Every later step is conditioned on the
+      # guard's verdict, and the guard only runs once v2 exists.
+      - name: Check that model v2 is frozen
+        id: frozen
+        run: |
+          if [ -f models/v2/MANIFEST.json ]; then
+            echo "active=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "models/v2/MANIFEST.json does not exist; v2 is not frozen yet. Nothing to do."
+            echo "active=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Decides whether the day still needs sealing. Crucially it does not infer
+      # a seal from a filename: a truncated, partial or mismatched file is
+      # reported as invalid and fails the run rather than being mistaken for
+      # success, which would exit green with neither a forecast nor a MISSED row
+      # and quietly drop the day out of the record. See seal_guard.py.
+      - name: Check whether tomorrow still needs sealing
+        id: guard
+        if: steps.frozen.outputs.active == 'true'
+        run: |
+          set -o pipefail
+          TARGET=$(TZ=Europe/Berlin date -d tomorrow +%Y-%m-%d)
+          echo "target=$TARGET" >> "$GITHUB_OUTPUT"
+          python -m de_power_live.seal_guard "$TARGET" \
+              --predictions-dir predictions/v2 --ledger results/v2/ledger.jsonl \
+            | tee "$RUNNER_TEMP/guard.out"
+          grep -E '^skip=(true|false)$' "$RUNNER_TEMP/guard.out" >> "$GITHUB_OUTPUT"
+
+      # The window never crosses local midnight, so the delivery date computed
+      # above still holds after the wait. Manual runs skip the wait by default,
+      # since dispatch is the emergency path used when the queue has already
+      # eaten the morning; pass skip_wait=false to rehearse the scheduled path.
+      - name: Wait for the seal window
+        id: wait
+        if: steps.guard.outputs.skip == 'false' && github.event.inputs.skip_wait != 'true'
+        run: |
+          set -o pipefail
+          python -m de_power_live.seal_wait \
+              --window "$SEAL_WINDOW_LOCAL" \
+              --max-wait-minutes "$MAX_WAIT_MINUTES" \
+            | tee "$RUNNER_TEMP/wait.out"
+          grep -E '^too_early=(true|false)$' "$RUNNER_TEMP/wait.out" >> "$GITHUB_OUTPUT"
+
+      # The wait can last hours, and until 2026-11-09 no live run had ever
+      # actually slept: the queue always delivered it after the window. If score
+      # pushes during the sleep, the push at the end of this job would be
+      # rejected and the sealed file lost with the runner. Refreshing here keeps
+      # that push a fast-forward. A failed refresh is not a reason not to seal.
+      - name: Refresh the checkout after the wait
+        if: steps.guard.outputs.skip == 'false' && steps.wait.outputs.too_early != 'true'
+        run: |
+          git pull --ff-only || echo "::warning::could not refresh the checkout; sealing on the commit already checked out"
+
+      # Retried because the data sources drop connections now and then. A retry
+      # cannot seal late, since predict refuses after gate closure, and cannot
+      # seal twice, since seal() is write-once. The last error is kept so that a
+      # MISSED row can say what went wrong.
+      #
+      # Skipped when the wait step stepped aside as too early. A manual run with
+      # skip_wait never runs the wait step, so its output is empty and this
+      # proceeds.
+      - name: Seal tomorrow's forecast
+        id: seal
+        if: steps.guard.outputs.skip == 'false' && steps.wait.outputs.too_early != 'true'
+        run: |
+          for attempt in 1 2 3; do
+            if python -m de_power_live.v2.predict 2> "$RUNNER_TEMP/seal.err"; then
+              exit 0
+            fi
+            cat "$RUNNER_TEMP/seal.err" >&2
+            if [ "$attempt" -lt 3 ]; then
+              echo "Attempt $attempt failed; retrying in 5 minutes."
+              sleep 300
+            fi
+          done
+          exit 1
+
+      # A failed seal is final only when nothing scheduled can still retry it:
+      # the gate has closed, or this is the last cron of the day, or the run was
+      # manual. Otherwise the job still fails, loudly, but writes no MISSED row,
+      # and the next scheduled run finds the day unsealed and tries again.
+      # Event values reach bash through env, never through interpolation.
+      - name: Record a miss if sealing failed
+        id: miss
+        if: failure() && steps.seal.outcome == 'failure'
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_SCHEDULE: ${{ github.event.schedule }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          TARGET=$(TZ=Europe/Berlin date -d tomorrow +%Y-%m-%d)
+          GATE=$(TZ=Europe/Berlin date -d "today $GATE_LOCAL" +%s)
+          if [ "$EVENT_NAME" = "schedule" ] \
+              && [ "$EVENT_SCHEDULE" != "$LAST_SCHEDULED_CRON" ] \
+              && [ "$(date +%s)" -lt "$GATE" ]; then
+            echo "Sealing failed, but the gate is still open and a later scheduled run will retry."
+            echo "No MISSED row is written by this run."
+            echo "recorded=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          CAUSE=$(tail -n 1 "$RUNNER_TEMP/seal.err" 2>/dev/null | cut -c1-300)
+          python -m de_power_live.v2.score --record-miss "$TARGET" \
+            --reason "predict-v2 job failed in run $RUN_ID: ${CAUSE:-no error text captured}"
+          echo "recorded=true" >> "$GITHUB_OUTPUT"
+
+      - name: Commit
+        if: always() && (steps.seal.outcome == 'success' || steps.miss.outputs.recorded == 'true')
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if [ -z "$(git status --porcelain predictions/v2 results/v2)" ]; then
+            echo "nothing to commit"
+            exit 0
+          fi
+          git add predictions/v2 results/v2
+          if [ "${{ steps.seal.outcome }}" = "success" ]; then
+            git commit -m "Seal v2 forecast $(TZ=Europe/Berlin date -d tomorrow +%Y-%m-%d)
+
+            Sealed by scheduled run ${{ github.run_id }} before gate closure."
+          else
+            git commit -m "Record missed v2 forecast $(TZ=Europe/Berlin date -d tomorrow +%Y-%m-%d)
+
+            No v2 forecast was sealed before gate closure; the MISSED ledger record is authoritative."
+          fi
+          # Other jobs write to main too (score, and the other model's seal).
+          # A rejected push is rebased and retried rather than lost: the files
+          # this job writes are touched by no other job.
+          for attempt in 1 2 3 4; do
+            if git push; then
+              exit 0
+            fi
+            echo "Push rejected; rebasing onto the latest main and retrying."
+            git pull --rebase
+            sleep 5
+          done
+          exit 1

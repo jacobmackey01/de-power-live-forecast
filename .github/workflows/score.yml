@@ -69,4 +69,15 @@ jobs:
           fi
           git add results
           git commit -m "Score settled delivery days (run ${{ github.run_id }})"
-          git push
+          # Other jobs write to main too (score, and the other model's seal).
+          # A rejected push is rebased and retried rather than lost: the files
+          # this job writes are touched by no other job.
+          for attempt in 1 2 3 4; do
+            if git push; then
+              exit 0
+            fi
+            echo "Push rejected; rebasing onto the latest main and retrying."
+            git pull --rebase
+            sleep 5
+          done
+          exit 1
