@@ -167,3 +167,45 @@ forecast.
 - Exact re-training reproducibility is still not guaranteed (README,
   "A reproducibility caveat"). Pin `nthread=1` for the frozen fit in v2 so the
   artefact can be rebuilt bit for bit.
+
+## 8. Three live inputs were not what the model was trained on
+
+Found on 2026-11-11, while building v2. v1 has three inputs built from realised
+generation and load over the 24 hours before the seal. In training they are a
+full 24-hour mean. Live, they are not: a fetch at 09:00 Berlin found solar and
+onshore-wind outturns published only up to 08:00 the previous morning, a day
+behind. So at every live seal:
+
+- the solar input was the mean of the two or three hours that happened to be
+  published, not of a day;
+- the wind input counted onshore wind as zero for almost the whole window,
+  because the code fills a missing onshore value with zero before adding
+  offshore.
+
+Nothing failed, and no backtest could show it, because by the time history is
+re-read the data is complete. The effect on v1's accuracy looks small: v1 run
+on complete history scores the same as v1 as sealed (40.3 against 40.4 EUR/MWh
+over the same 91 days). It is still a train/serve skew that sat in the live
+record for the whole of phase 1.
+
+**v2:** uses no outturn data at all. In the replay those inputs add nothing
+measurable when present, and a model trained with them and served a blank loses
+about a quarter of its skill over a winter. A probe of what is actually
+published at the seal hour belongs next to every input, not only the ones known
+to be late.
+
+## 9. The level was the real problem with call A
+
+Section 5 put October's weak result down to missing fuel and temperature
+drivers. The November record showed something more basic. v1 predicts price
+minus last week's price, but it also sees raw price levels, and it learned that
+a high price falls back to the level of its training years, about 90 EUR/MWh.
+When prices stepped up to about 250, its average error went from 0 (yesterday's
+price under 50) to -70 (over 250), and from 1 to 6 November it was 92 EUR/MWh
+too low on average, six times worse than repeating yesterday's price.
+
+**v2:** predicts the change from the same hour yesterday, sees only price
+differences, and scales both by the last week's average price. Refitting v1's
+design every week does not fix it; removing the level does
+(`research/v2/README.md`).
+
