@@ -1,9 +1,7 @@
 # Pre-registration, phase 2: live day-ahead forecasting record (DE-LU), model v2
 
-> **DRAFT, not frozen.** Written 2026-11-11, choices settled 2026-11-12.
-> Nothing is left open. To freeze: delete this box and commit, before any v2
-> prediction. CI refuses any v2 prediction while this box is here, and refuses
-> any change to this file once a v2 prediction exists.
+**Status: FROZEN on its commit. Nothing below may be edited after the first v2
+prediction file exists.**
 
 This document is committed and pushed *before* any v2 prediction is generated.
 Its git commit timestamp is the evidence that the calls below were declared in
