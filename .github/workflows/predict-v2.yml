@@ -162,6 +162,22 @@ jobs:
           done
           exit 1
 
+      # Kept whatever happens next. If the commit or the push fails, the runner
+      # is destroyed and the forecast with it: that happened on 2026-11-12, when
+      # the first v2 forecast was built and then lost to a bug in the commit
+      # step, and the one published four minutes later was a different forecast.
+      # This copy records what each run built and when, for 90 days, and is the
+      # file to publish by hand if a run seals and then cannot push.
+      - name: Keep a copy of the sealed forecast
+        if: always() && steps.seal.outcome == 'success'
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: v2-seal-${{ steps.guard.outputs.target }}-run-${{ github.run_id }}-${{ github.run_attempt }}
+          path: predictions/v2/${{ steps.guard.outputs.target }}.json
+          if-no-files-found: error
+          retention-days: 90
+
       # A failed seal is final only when nothing scheduled can still retry it:
       # the gate has closed, or this is the last cron of the day, or the run was
       # manual. Otherwise the job still fails, loudly, but writes no MISSED row,
@@ -192,12 +208,26 @@ jobs:
 
       - name: Commit
         if: always() && (steps.seal.outcome == 'success' || steps.miss.outputs.recorded == 'true')
+        env:
+          SEAL_OUTCOME: ${{ steps.seal.outcome }}
+          EVENT_NAME: ${{ github.event_name }}
+          RUN_ID: ${{ github.run_id }}
+          TARGET: ${{ steps.guard.outputs.target }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           if [ -z "$(git status --porcelain predictions/v2 results/v2)" ]; then
             echo "nothing to commit"
             exit 0
+          fi
+          # A forecast is only a forecast if it is public before the gate. The
+          # file's own timestamp says when it was built, not when anyone could
+          # see it. So the gate is asked again here, and before every push. A
+          # forecast that cannot be published in time is not published at all;
+          # the scoring job then records the day as MISSED.
+          if [ "$SEAL_OUTCOME" = "success" ] && ! python -m de_power_live.v2.gate "$TARGET"; then
+            echo "::error::The forecast for $TARGET was built before the gate but cannot be published before it. Not publishing."
+            exit 1
           fi
           # Only one of the two exists after a first seal or a first miss, and
           # git add refuses a path that is not there.
@@ -206,24 +236,34 @@ jobs:
               git add "$path"
             fi
           done
-          if [ "${{ steps.seal.outcome }}" = "success" ]; then
-            git commit -m "Seal v2 forecast $(TZ=Europe/Berlin date -d tomorrow +%Y-%m-%d)
+          if [ "$SEAL_OUTCOME" = "success" ]; then
+            git commit -m "Seal v2 forecast $TARGET
 
-            Sealed by scheduled run ${{ github.run_id }} before gate closure."
+            Sealed by run $RUN_ID ($EVENT_NAME) before gate closure."
           else
-            git commit -m "Record missed v2 forecast $(TZ=Europe/Berlin date -d tomorrow +%Y-%m-%d)
+            git commit -m "Record missed v2 forecast $TARGET
 
             No v2 forecast was sealed before gate closure; the MISSED ledger record is authoritative."
           fi
-          # Other jobs write to main too (score, and the other model's seal).
-          # A rejected push is rebased and retried rather than lost: the files
-          # this job writes are touched by no other job.
+          # Other jobs write to main too. A rejected push is rebased and
+          # retried rather than lost. A forecast is a file no other job
+          # touches. A miss appends one line to the v2 ledger, which the
+          # scoring job also appends to; .gitattributes merges that file by
+          # union, so two appended lines both survive a rebase.
           for attempt in 1 2 3 4; do
+            if [ "$SEAL_OUTCOME" = "success" ] && ! python -m de_power_live.v2.gate "$TARGET"; then
+              echo "::error::The gate for $TARGET closed before the forecast could be pushed. Not publishing."
+              exit 1
+            fi
             if git push; then
               exit 0
             fi
             echo "Push rejected; rebasing onto the latest main and retrying."
-            git pull --rebase
+            if ! git pull --rebase; then
+              git rebase --abort || true
+              echo "::error::Could not rebase onto the latest main; nothing was pushed."
+              exit 1
+            fi
             sleep 5
           done
           exit 1

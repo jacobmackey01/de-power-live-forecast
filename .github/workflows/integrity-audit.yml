@@ -116,6 +116,15 @@ jobs:
         # the answer. Nothing is installed and nothing is regenerated on disk.
         run: PYTHONPATH=src python -m de_power_live.audit
 
+      # The same question for phase 2, and more: every scored row must repeat
+      # its sealed forecast exactly, no day may appear twice, every due day
+      # must have a forecast or a MISSED row, and no forecast may have entered
+      # the repository after its gate. Stdlib only, like the step above.
+      - name: The phase-2 record follows from its sealed forecasts
+        id: v2content
+        if: always()
+        run: PYTHONPATH=src python -m de_power_live.v2.audit
+
       # Values reach bash through env, never through ${{ }} interpolation into
       # the script body, and every format string is single-quoted so a backtick
       # in a workflow name cannot become command substitution.
@@ -127,6 +136,7 @@ jobs:
           SOURCE_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
           HISTORY: ${{ steps.history.outcome }}
           CONTENT: ${{ steps.content.outcome }}
+          V2CONTENT: ${{ steps.v2content.outcome }}
         run: |
           {
             printf '## Integrity audit\n\n'
@@ -139,9 +149,10 @@ jobs:
             printf '| Check | Result |\n|---|---|\n'
             printf '| Ledger append-only, sealed predictions write-once | `%s` |\n' "$HISTORY"
             printf '| Ledger vs SUMMARY.md vs track-record figure | `%s` |\n' "$CONTENT"
+            printf '| Phase-2 ledger vs its sealed forecasts | `%s` |\n' "$V2CONTENT"
           } >> "$GITHUB_STEP_SUMMARY"
 
-          if [ "$HISTORY" != "success" ] || [ "$CONTENT" != "success" ]; then
+          if [ "$HISTORY" != "success" ] || [ "$CONTENT" != "success" ] || [ "$V2CONTENT" != "success" ]; then
             {
               printf '\nDiscrepancies were found and **nothing has been changed**.\n'
               printf 'Read the annotations on the failed step, then repair through\n'

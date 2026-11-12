@@ -26,7 +26,11 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
+
+from . import AUCTION_CLOSE_LOCAL_HOUR, MARKET_TZ
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PREDICTIONS_DIR = REPO_ROOT / "predictions"
@@ -97,6 +101,26 @@ def assess(readings: list[tuple[str, float]], warn_minutes: float) -> dict:
     }
 
 
+def expected_delivery(now: datetime) -> str:
+    """The newest delivery day that should have been sealed by ``now``.
+
+    Before today's gate that is today, sealed yesterday. Once the gate has
+    closed it is tomorrow.
+    """
+    local = now.astimezone(ZoneInfo(MARKET_TZ))
+    ahead = 1 if local.hour >= AUCTION_CLOSE_LOCAL_HOUR else 0
+    return (local.date() + timedelta(days=ahead)).isoformat()
+
+
+def is_stale(readings: list[tuple[str, float]], now: datetime) -> bool:
+    """Whether the newest seal is older than the day that was due by now.
+
+    Margin alone cannot see this. A model that stopped sealing a week ago still
+    has a newest seal, and that seal still has a healthy margin.
+    """
+    return bool(readings) and readings[-1][0] < expected_delivery(now)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Check remaining margin to gate closure")
     parser.add_argument(
@@ -117,6 +141,11 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="exit 0 when the directory holds no sealed prediction yet",
     )
+    parser.add_argument(
+        "--expect-current",
+        action="store_true",
+        help="also fail if the newest seal is not for the delivery day that was due by now",
+    )
     args = parser.parse_args(argv)
 
     # A model that has not sealed anything yet has no margin to lose. Without
@@ -125,7 +154,13 @@ def main(argv: list[str] | None = None) -> int:
         print(f"no sealed predictions in {args.predictions_dir} yet; nothing to check")
         return 0
 
-    report = assess(collect(args.predictions_dir), args.warn_minutes)
+    readings = collect(args.predictions_dir)
+    report = assess(readings, args.warn_minutes)
+    now = datetime.now(timezone.utc)
+    report["expected_delivery_date_local"] = expected_delivery(now)
+    report["stale"] = bool(args.expect_current and is_stale(readings, now))
+    if report["stale"]:
+        report["ok"] = False
 
     if args.json:
         print(json.dumps(report, indent=2))
@@ -143,6 +178,14 @@ def main(argv: list[str] | None = None) -> int:
     if trend is not None:
         direction = "shrinking" if trend < 0 else "growing"
         print(f"\ntrend over {len(report['readings'])} seals: {trend:+.1f} min ({direction})")
+
+    if report["stale"]:
+        print(
+            f"\nSTALE: the newest seal is for {report['delivery_date_local']}, but a seal for "
+            f"{report['expected_delivery_date_local']} was due by now. A day has been missed or "
+            "the seal job has stopped."
+        )
+        return 1
 
     margin = report["minutes_before_close"]
     if report["level"] == "critical":

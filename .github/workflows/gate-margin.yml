@@ -51,12 +51,17 @@ jobs:
 
       # No install. gate_margin.py is standard library only, exactly so this
       # alarm cannot be silenced by an unrelated dependency failure.
+      # The manual input reaches the script through env, never by being pasted
+      # into it, so a value with shell syntax in it is an argument and nothing
+      # more. --expect-current also fails if the newest seal is not for the day
+      # that should have been sealed by now: without it, a model that stopped
+      # sealing would keep passing on the strength of its last good day.
       - name: Check margin to gate closure
         env:
           PYTHONPATH: src
+          WARN_MINUTES: ${{ github.event.inputs.warn_minutes || '90' }}
         run: |
-          python -m de_power_live.gate_margin \
-            --warn-minutes "${{ github.event.inputs.warn_minutes || '90' }}"
+          python -m de_power_live.gate_margin --expect-current --warn-minutes "$WARN_MINUTES"
 
       # The same alarm for model v2, which seals from its own job on its own
       # crons and can lose its margin independently. Runs whatever the step
@@ -65,7 +70,8 @@ jobs:
         if: always()
         env:
           PYTHONPATH: src
+          WARN_MINUTES: ${{ github.event.inputs.warn_minutes || '90' }}
         run: |
           python -m de_power_live.gate_margin \
             --predictions-dir predictions/v2 --allow-empty \
-            --warn-minutes "${{ github.event.inputs.warn_minutes || '90' }}"
+            --expect-current --warn-minutes "$WARN_MINUTES"

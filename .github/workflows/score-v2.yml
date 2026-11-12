@@ -4,6 +4,11 @@ name: score-v2
 # predictions/. Separate from score.yml so that neither model's scoring can
 # hold up the other's.
 #
+# It also accounts for every delivery day. A day whose gate has closed with no
+# forecast and no MISSED row is entered as MISSED here, so a seal job that never
+# ran, was cancelled, or failed outside its seal step cannot leave a day absent
+# from the record.
+#
 # Does nothing until v2 has sealed a forecast.
 
 on:
@@ -67,8 +72,11 @@ jobs:
         continue-on-error: true
         run: python -m de_power_live.v2.final_report
 
+      # Runs even if scoring failed part-way. Each day is appended as it is
+      # scored, and a MISSED row is appended before any scoring starts, so
+      # whatever was completed is committed whatever came after it.
       - name: Commit v2 ledger
-        if: steps.sealed.outputs.active == 'true'
+        if: always() && steps.sealed.outputs.active == 'true'
         run: |
           if [ -n "$(git status --porcelain predictions)" ]; then
             echo "::error::scoring changed predictions/, which it must never do"
@@ -90,7 +98,11 @@ jobs:
               exit 0
             fi
             echo "Push rejected; rebasing onto the latest main and retrying."
-            git pull --rebase
+            if ! git pull --rebase; then
+              git rebase --abort || true
+              echo "::error::Could not rebase onto the latest main; nothing was pushed."
+              exit 1
+            fi
             sleep 5
           done
           exit 1
