@@ -1,0 +1,115 @@
+/Users/jacob/Documents/Claude/de-power-live-forecast/research/v2/lib.py:139: RuntimeWarning: Mean of empty slice
+  same_hour_mean = pd.DataFrame(np.nanmean(same_hour, axis=0), index=days, columns=P.columns)
+/Users/jacob/Documents/Claude/de-power-live-forecast/.venv/lib/python3.12/site-packages/numpy/lib/_nanfunctions_impl.py:1997: RuntimeWarning: Degrees of freedom <= 0 for slice.
+  var = nanvar(a, axis=axis, dtype=dtype, out=out, ddof=ddof,
+centre: scaled, weekly refit. window MAE 22.48 vs yesterday 39.99
+
+=== Call C: rolling intervals from the last N days of scaled errors ===
+
+N=14 days, pooled
+         cov80  cov50  width80  above_q90  below_q10
+day                                                 
+2026-08  0.792  0.470   48.641      0.095      0.114
+2026-09  0.754  0.461   76.709      0.126      0.119
+2026-10  0.730  0.457   71.037      0.149      0.121
+2026-11  0.951  0.705  173.862      0.015      0.034
+all      0.779  0.489   77.490      0.112      0.109
+
+N=14 days, by time-of-day block
+         cov80  cov50  width80  above_q90  below_q10
+day                                                 
+2026-08  0.760  0.461   48.502      0.109      0.131
+2026-09  0.732  0.425   72.875      0.139      0.129
+2026-10  0.688  0.457   67.710      0.181      0.130
+2026-11  0.951  0.655  165.772      0.015      0.034
+all      0.750  0.470   74.409      0.130      0.120
+
+N=28 days, pooled
+         cov80  cov50  width80  above_q90  below_q10
+day                                                 
+2026-08  0.799  0.471   49.672      0.093      0.108
+2026-09  0.732  0.440   70.910      0.146      0.122
+2026-10  0.753  0.496   75.775      0.133      0.114
+2026-11  0.943  0.621  124.338      0.045      0.011
+all      0.781  0.486   72.124      0.116      0.104
+
+N=28 days, by time-of-day block
+         cov80  cov50  width80  above_q90  below_q10
+day                                                 
+2026-08  0.776  0.457   48.941      0.088      0.136
+2026-09  0.731  0.436   69.525      0.149      0.121
+2026-10  0.733  0.505   73.967      0.149      0.118
+2026-11  0.951  0.614  123.267      0.038      0.011
+all      0.768  0.483   70.832      0.119      0.113
+
+N=56 days, pooled
+         cov80  cov50  width80  above_q90  below_q10
+day                                                 
+2026-08  0.820  0.510   52.103      0.085      0.095
+2026-09  0.700  0.383   61.994      0.167      0.133
+2026-10  0.790  0.546   79.772      0.103      0.106
+2026-11  0.947  0.682  126.161      0.049      0.004
+all      0.789  0.502   71.599      0.111      0.100
+
+N=56 days, by time-of-day block
+         cov80  cov50  width80  above_q90  below_q10
+day                                                 
+2026-08  0.805  0.500   53.403      0.082      0.114
+2026-09  0.693  0.382   61.468      0.178      0.129
+2026-10  0.780  0.543   78.870      0.109      0.112
+2026-11  0.962  0.667  125.473      0.034      0.004
+all      0.781  0.496   71.464      0.113      0.106
+
+N=28 by block, centred on yesterday's price instead of v2
+         cov80  cov50  width80  above_q90  below_q10
+day                                                 
+2026-08  0.806  0.496   86.932      0.088      0.106
+2026-09  0.712  0.369  129.885      0.150      0.138
+2026-10  0.793  0.501  166.724      0.120      0.087
+2026-11  0.966  0.788  248.986      0.015      0.019
+all      0.792  0.492  141.831      0.108      0.100
+
+=== Call B candidates ===
+events by month:
+          spike  low  cheap3  neg  below10
+day                                      
+2026-08    104   60      87   49       76
+2026-09    139   62      90   36       64
+2026-10    124   76      93    2       28
+2026-11    104    0      33    0        0
+
+spike: price above the trailing 28-day 90th percentile: 471 events in 101 days
+  vs hour-of-day frequency, last 28 days    model 0.867  baseline 0.616  diff +0.251 [+0.188, +0.318]
+  vs yesterday same hour                    model 0.867  baseline 0.508  diff +0.359 [+0.302, +0.424]
+
+low: price below the trailing 28-day 10th percentile: 198 events in 101 days
+  vs hour-of-day frequency, last 28 days    model 0.859  baseline 0.260  diff +0.599 [+0.445, +0.706]
+  vs yesterday same hour                    model 0.859  baseline 0.260  diff +0.599 [+0.468, +0.709]
+
+3 cheapest hours of the day: 303 events in 101 days
+  vs hour-of-day frequency, last 28 days    model 0.716  baseline 0.814  diff -0.098 [-0.159, -0.040]
+  vs yesterday's ranking                    model 0.716  baseline 0.649  diff +0.066 [+0.003, +0.134]
+
+spike probability reliability:
+                hours  forecast  observed
+p_spike                                 
+(-0.01, 0.05]   1104     0.012     0.003
+(0.05, 0.2]      569     0.106     0.054
+(0.2, 0.4]       234     0.287     0.205
+(0.4, 0.6]       128     0.500     0.422
+(0.6, 0.8]       135     0.710     0.748
+(0.8, 1.0]       254     0.911     0.921
+
+low probability reliability:
+                hours  forecast  observed
+p_low                                   
+(-0.01, 0.05]   2114     0.004     0.009
+(0.05, 0.2]      130     0.105     0.300
+(0.2, 0.4]        35     0.279     0.571
+(0.4, 0.6]        33     0.486     0.424
+(0.6, 0.8]        41     0.713     0.829
+(0.8, 1.0]        71     0.908     1.000
+
+2024-11-21..2025-02-28: 2400 hours, mean 114, below 0: 33, below 10: 93, below 30: 171
+
+2025-11-21..2026-02-28: 2400 hours, mean 102, below 0: 9, below 10: 38, below 30: 57

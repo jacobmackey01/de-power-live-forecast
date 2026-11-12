@@ -1,0 +1,39 @@
+/Users/jacob/Documents/Claude/de-power-live-forecast/research/v2/lib.py:139: RuntimeWarning: Mean of empty slice
+  same_hour_mean = pd.DataFrame(np.nanmean(same_hour, axis=0), index=days, columns=P.columns)
+/Users/jacob/Documents/Claude/de-power-live-forecast/.venv/lib/python3.12/site-packages/numpy/lib/_nanfunctions_impl.py:1997: RuntimeWarning: Degrees of freedom <= 0 for slice.
+  var = nanvar(a, axis=axis, dtype=dtype, out=out, ddof=ddof,
+== Last winter, 100 days ==
+day                     2025-11  2025-12  2026-01  2026-02       all
+hours                   240.000  744.000  744.000  672.000  2400.000
+mae_d1                   41.508   20.106   24.595   17.068    22.787
+mae_d7                   42.610   27.598   27.360   21.087    27.202
+mae_scaled_weekly        26.740   11.207   15.430    9.270    13.527
+mae_scaled_frozen        25.611   12.018   14.952    9.360    13.543
+mae_add_weekly           25.449   11.088   15.473    9.987    13.575
+skill_d1_scaled_weekly    0.356    0.443    0.373    0.457     0.406
+skill_d1_scaled_frozen    0.383    0.402    0.392    0.452     0.406
+skill_d1_add_weekly       0.387    0.449    0.371    0.415     0.404
+  scaled_weekly   skill vs yesterday +0.406 [+0.334, +0.474]
+  scaled_frozen   skill vs yesterday +0.406 [+0.333, +0.474]
+  add_weekly      skill vs yesterday +0.404 [+0.334, +0.468]
+
+intervals, N=28 pooled
+         cov80  cov50  width80  above_q90  below_q10
+day                                                 
+2025-11  0.733  0.558   65.486      0.112      0.154
+2025-12  0.836  0.511   39.829      0.065      0.099
+2026-01  0.784  0.491   49.952      0.141      0.075
+2026-02  0.789  0.521   31.369      0.083      0.128
+all      0.796  0.512   43.164      0.098      0.105
+
+intervals, N=56 pooled
+         cov80  cov50  width80  above_q90  below_q10
+day                                                 
+2025-11  0.729  0.550   62.707      0.121      0.150
+2025-12  0.883  0.551   47.515      0.027      0.090
+2026-01  0.784  0.476   46.445      0.156      0.060
+2026-02  0.871  0.580   40.356      0.036      0.094
+all      0.833  0.536   46.698      0.079      0.088
+
+spike call: 261 events in 100 days, by month: {'2025-11': 55, '2025-12': 32, '2026-01': 157, '2026-02': 17}
+   model 0.760  baseline 0.230  diff +0.530 [+0.407, +0.628]

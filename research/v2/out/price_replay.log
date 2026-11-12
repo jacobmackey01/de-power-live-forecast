@@ -1,0 +1,83 @@
+/Users/jacob/Documents/Claude/de-power-live-forecast/research/v2/lib.py:139: RuntimeWarning: Mean of empty slice
+  same_hour_mean = pd.DataFrame(np.nanmean(same_hour, axis=0), index=days, columns=P.columns)
+/Users/jacob/Documents/Claude/de-power-live-forecast/.venv/lib/python3.12/site-packages/numpy/lib/_nanfunctions_impl.py:1997: RuntimeWarning: Degrees of freedom <= 0 for slice.
+  var = nanvar(a, axis=axis, dtype=dtype, out=out, ddof=ddof,
+dataset (20736, 53), 0s; price days 2024-07-01 .. 2026-11-11
+mean price by half-year:
+            mean    max
+day  day              
+2024 1     89.3  395.3
+2025 0     90.7  231.4
+     1     88.0  220.5
+2026 0     98.7  207.8
+     1    148.3  351.5
+add_frozen: 3s
+add_weekly: 44s
+scaled_frozen: 3s
+scaled_weekly: 44s
+scaled_weekly_1y: 26s
+v1 replays: 45s
+
+== All replay days with every model (100 days) ==
+day                        2026-08  2026-09  2026-10  2026-11       all
+hours                      696.000  720.000  744.000  240.000  2400.000
+mae_d1                      26.426   49.373   46.709   29.569    39.912
+mae_d7                      31.919   61.579   76.173   79.698    59.314
+mae_add_frozen              16.868   29.292   27.912   26.772    25.009
+mae_add_weekly              16.430   28.155   26.272   27.328    24.088
+mae_scaled_frozen           16.519   25.853   24.446   22.422    22.367
+mae_scaled_weekly           16.575   25.629   24.321   23.348    22.370
+mae_scaled_weekly_1y        16.907   25.402   22.961   22.664    21.908
+mae_v1_spec_weekly          18.789   34.068   36.138   43.349    31.207
+mae_v1_frozen_replay        18.969   39.220   46.915   70.900    38.901
+skill_d1_add_frozen          0.362    0.407    0.402    0.095     0.373
+skill_d1_add_weekly          0.378    0.430    0.438    0.076     0.396
+skill_d1_scaled_frozen       0.375    0.476    0.477    0.242     0.440
+skill_d1_scaled_weekly       0.373    0.481    0.479    0.210     0.440
+skill_d1_scaled_weekly_1y    0.360    0.485    0.508    0.234     0.451
+skill_d1_v1_spec_weekly      0.289    0.310    0.226   -0.466     0.218
+skill_d1_v1_frozen_replay    0.282    0.206   -0.004   -1.398     0.025
+
+== Days v1 sealed live (91 days) ==
+day                        2026-08  2026-09  2026-10  2026-11       all
+hours                      600.000  624.000  720.000  240.000  2184.000
+mae_d1                      24.905   51.790   47.675   29.569    40.605
+mae_d7                      32.421   67.278   73.327   79.698    61.061
+mae_add_frozen              16.080   30.398   28.281   26.772    25.368
+mae_add_weekly              15.730   29.159   26.766   27.328    24.479
+mae_scaled_frozen           15.960   26.523   24.817   22.422    22.608
+mae_scaled_weekly           16.070   26.109   24.696   23.348    22.582
+mae_scaled_weekly_1y        16.629   26.066   23.262   22.664    22.175
+mae_v1_spec_weekly          19.504   35.194   35.688   43.349    31.943
+mae_v1_frozen_replay        19.749   40.493   46.988   70.900    40.277
+mae_v1_live                 20.385   38.363   47.792   73.659    40.411
+skill_d1_add_frozen          0.354    0.413    0.407    0.095     0.375
+skill_d1_add_weekly          0.368    0.437    0.439    0.076     0.397
+skill_d1_scaled_frozen       0.359    0.488    0.479    0.242     0.443
+skill_d1_scaled_weekly       0.355    0.496    0.482    0.210     0.444
+skill_d1_scaled_weekly_1y    0.332    0.497    0.512    0.234     0.454
+skill_d1_v1_spec_weekly      0.217    0.320    0.251   -0.466     0.213
+skill_d1_v1_frozen_replay    0.207    0.218    0.014   -1.398     0.008
+skill_d1_v1_live             0.181    0.259   -0.002   -1.491     0.005
+
+replay flattery check, v1 frozen on replay weather vs v1 as sealed live:
+  mean |replay - live| = 7.90 EUR/MWh
+
+95% CI of pooled skill vs yesterday (day-block bootstrap), all replay days:
+  add_frozen           +0.373 [+0.322, +0.421]
+  add_weekly           +0.396 [+0.344, +0.443]
+  scaled_frozen        +0.440 [+0.382, +0.489]
+  scaled_weekly        +0.440 [+0.378, +0.492]
+  scaled_weekly_1y     +0.451 [+0.399, +0.498]
+  v1_spec_weekly       +0.218 [+0.099, +0.321]
+  v1_frozen_replay     +0.025 [-0.141, +0.166]
+
+bias (forecast minus outturn) by yesterday's price level, EUR/MWh:
+             hours  scaled_weekly  add_weekly  v1_spec_weekly  v1_frozen_replay
+d1                                                                             
+(-500, 50]   316.0           -5.9       -10.1             2.9               1.7
+(50, 100]    187.0           -3.2        -2.2            -3.9              -6.6
+(100, 150]   471.0           -0.5         4.5            -4.4              -7.1
+(150, 200]   761.0           -3.5        -0.1            -9.4             -18.3
+(200, 250]   425.0           -8.5        -9.0           -20.5             -41.5
+(250, 1000]  240.0           -1.4        -4.5           -41.2             -60.3
