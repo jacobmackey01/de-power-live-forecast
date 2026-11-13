@@ -42,6 +42,8 @@ UNACCOUNTED_AFTER = timedelta(hours=36)
 # The interval rule refuses to seal below 200 recent errors, and errors only
 # come from sealed days. Warn while there is still time to notice.
 POOL_WARNING = 336
+POOL_MINIMUM = 200
+POOL_DAYS = 28
 MARGIN_TOLERANCE_MINUTES = 0.11
 
 
@@ -272,19 +274,14 @@ def check_scored_row(row: dict, payload: dict) -> list[str]:
     return problems
 
 
-def publication_times(predictions_dir: Path, repo: Path = REPO_ROOT) -> dict[str, datetime] | None:
-    """When each sealed file first entered the history, by committer time.
-
-    Returns None if git cannot answer (not a repository, or a shallow clone
-    that does not reach the commit), so that the caller can say the check was
-    not made rather than pass it.
-    """
-    out: dict[str, datetime] = {}
+def _added_in(predictions_dir: Path, repo: Path, fmt: str) -> dict[str, str] | None:
+    """For each sealed file, ``fmt`` of the commit that first added it."""
+    out: dict[str, str] = {}
     for day in sealed_days(predictions_dir):
         path = (predictions_dir / f"{day}.json").resolve()
         try:
             result = subprocess.run(
-                ["git", "log", "--diff-filter=A", "--format=%cI", "--", str(path.relative_to(repo.resolve()))],
+                ["git", "log", "--diff-filter=A", f"--format={fmt}", "--", str(path.relative_to(repo.resolve()))],
                 cwd=repo, capture_output=True, text=True, check=True,
             )
         except (OSError, ValueError, subprocess.CalledProcessError):
@@ -292,8 +289,98 @@ def publication_times(predictions_dir: Path, repo: Path = REPO_ROOT) -> dict[str
         stamps = result.stdout.split()
         if not stamps:
             return None
-        out[day] = datetime.fromisoformat(stamps[-1].replace("Z", "+00:00"))
+        out[day] = stamps[-1]
     return out
+
+
+def publication_times(predictions_dir: Path, repo: Path = REPO_ROOT) -> dict[str, datetime] | None:
+    """When each sealed file first entered the history, by committer time.
+
+    This is the committer's own clock: it says when the commit was made on the
+    machine that made it, not when anyone else could see it. A commit made
+    before the gate and pushed after it has an innocent committer time. So this
+    can show a forecast was late; it cannot show one was on time. That takes
+    ``received_times``.
+
+    Returns None if git cannot answer (not a repository, or a shallow clone
+    that does not reach the commit), so that the caller can say the check was
+    not made rather than pass it.
+    """
+    stamps = _added_in(predictions_dir, repo, "%cI")
+    if stamps is None:
+        return None
+    return {day: datetime.fromisoformat(stamp.replace("Z", "+00:00")) for day, stamp in stamps.items()}
+
+
+def read_pushes(path: Path) -> list[tuple[datetime, str]]:
+    """GitHub's own record of what it received on main, oldest first.
+
+    One JSON object per line, as written by the audit workflow from the
+    repository activity API: ``timestamp`` is when GitHub received the push and
+    ``after`` is the commit main pointed to once it had.
+    """
+    out = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        row = json.loads(line)
+        stamp, after = row.get("timestamp"), row.get("after")
+        if isinstance(stamp, str) and isinstance(after, str) and after.strip("0"):
+            out.append((datetime.fromisoformat(stamp.replace("Z", "+00:00")), after))
+    return sorted(out)
+
+
+def received_times(
+    predictions_dir: Path, pushes: list[tuple[datetime, str]], repo: Path = REPO_ROOT
+) -> dict[str, datetime | None] | None:
+    """When GitHub received each sealed file: the first push to main that held it.
+
+    None for a day means no recorded push contains the commit that added the
+    file, so when it became public is not proved. None for the whole answer
+    means git could not be asked.
+    """
+    commits = _added_in(predictions_dir, repo, "%H")
+    if commits is None:
+        return None
+    by_head = {}
+    for stamp, after in pushes:
+        by_head.setdefault(after, stamp)
+
+    def contains(head: str, commit: str) -> bool:
+        try:
+            return subprocess.run(
+                ["git", "merge-base", "--is-ancestor", commit, head], cwd=repo, capture_output=True
+            ).returncode == 0
+        except OSError:
+            return False
+
+    out: dict[str, datetime | None] = {}
+    for day, commit in commits.items():
+        found = by_head.get(commit)
+        if found is None:
+            # Not the tip of any push: it arrived underneath a later commit.
+            found = next((stamp for stamp, after in pushes if contains(after, commit)), None)
+        out[day] = found
+    return out
+
+
+def eligible_errors(target: date, payloads: dict[str, dict], warm: dict[str, list]) -> int:
+    """How many errors the interval rule would find for a forecast of ``target``.
+
+    The count the frozen rule makes (v2/calls.py, error_pool), repeated here
+    without its dependencies: over the 28 days before ``target``, a day v2
+    sealed gives one error per sealed hour, a day before the first seal gives
+    its warm-start errors, and any other day gives nothing.
+    """
+    total = 0
+    for back in range(1, POOL_DAYS + 1):
+        key = (target - timedelta(days=back)).isoformat()
+        if key in payloads:
+            calls = payloads[key].get("predictions")
+            total += len(calls) if isinstance(calls, list) else 0
+        elif key in warm:
+            total += sum(1 for value in warm[key] if _finite(value))
+    return total
 
 
 def audit(
@@ -303,6 +390,7 @@ def audit(
     now: datetime | None = None,
     first: date = FIRST_DELIVERY_DAY,
     published: dict[str, datetime] | None = None,
+    received: dict[str, datetime | None] | None = None,
 ) -> tuple[list[str], list[str]]:
     """Return (problems, warnings). Problems fail the audit; warnings do not."""
     now = now or datetime.now(timezone.utc)
@@ -338,6 +426,24 @@ def audit(
                     "the gate. Its own timestamp is not evidence that it was published in time."
                 )
 
+    # The committer time above can convict a forecast and cannot clear one.
+    # GitHub's record of when it received the push can do both.
+    if received is not None:
+        for day in sealed:
+            if day not in payloads:
+                continue
+            stamp = received.get(day)
+            if stamp is None:
+                warnings.append(
+                    f"{day}: GitHub has no record of the push that published this forecast, so it is "
+                    "not proved to have been public before its gate. Its commit time is the only evidence."
+                )
+            elif stamp >= gate_utc(date.fromisoformat(day)):
+                problems.append(
+                    f"{day}: GitHub received the sealed file at {stamp.isoformat()}, at or after the "
+                    "gate. It was published LATE and is not a valid forecast, whatever its own timestamp says."
+                )
+
     rows, line_problems = read_ledger(ledger_path)
     problems += line_problems
     try:
@@ -370,25 +476,58 @@ def audit(
         if day not in by_day and now > ended + UNSCORED_AFTER:
             warnings.append(f"{day}: sealed and long since settled, but not scored. Has scoring stopped?")
 
-    if sealed and sealed[-1] in payloads:
-        pool = payloads[sealed[-1]].get("error_pool", {})
-        if _finite(pool.get("n_errors")) and pool["n_errors"] < POOL_WARNING:
+    # The pool is counted for the next forecast due, as of now. The count
+    # inside the newest sealed file is as old as that file: if sealing stops,
+    # it stays where it was while the errors behind it age out of the window.
+    warm = {}
+    warm_path = models_dir / "warm_start.json"
+    if warm_path.exists():
+        warm = json.loads(warm_path.read_text(encoding="utf-8")).get("scaled_errors", {})
+    next_target = now.astimezone(zone).date() + timedelta(days=1)
+    if sealed and next_target >= first:
+        count = eligible_errors(next_target, payloads, warm)
+        if count < POOL_MINIMUM:
             warnings.append(
-                f"{sealed[-1]}: only {pool['n_errors']} recent forecast errors behind the intervals. "
-                "Below 200 the model refuses to seal, and it cannot recover from that by itself."
+                f"a forecast for {next_target} would have {count} recent forecast errors behind its "
+                f"intervals, below the {POOL_MINIMUM} the frozen rule needs. v2 refuses to seal and cannot "
+                "recover from that by itself."
+            )
+        elif count < POOL_WARNING:
+            warnings.append(
+                f"a forecast for {next_target} would have only {count} recent forecast errors behind its "
+                f"intervals. Below {POOL_MINIMUM} the model refuses to seal, and it cannot recover from "
+                "that by itself."
             )
     return problems, warnings
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Audit the phase-2 record against its sealed files")
-    parser.add_argument("--no-git", action="store_true", help="skip the publication-time check")
+    parser.add_argument("--no-git", action="store_true", help="skip the publication-time checks")
+    parser.add_argument(
+        "--pushes", type=Path, default=None,
+        help="GitHub's record of pushes to main, one JSON object per line (timestamp, after)",
+    )
     args = parser.parse_args(argv)
 
+    any_sealed = bool(sealed_days(PREDICTIONS_DIR))
     published = None if args.no_git else publication_times(PREDICTIONS_DIR)
-    problems, warnings = audit(published=published)
-    if published is None and not args.no_git and sealed_days(PREDICTIONS_DIR):
+    received, pushes_error = None, None
+    if args.pushes is not None and not args.no_git:
+        try:
+            received = received_times(PREDICTIONS_DIR, read_pushes(args.pushes))
+        except (OSError, ValueError) as exc:
+            pushes_error = f"{type(exc).__name__}: {exc}"
+    problems, warnings = audit(published=published, received=received)
+    if published is None and not args.no_git and any_sealed:
         warnings.append("publication times could not be read from git; that check was not made")
+    if received is None and not args.no_git and any_sealed:
+        warnings.append(
+            "GitHub's record of pushes was not available"
+            + (f" ({pushes_error})" if pushes_error else "")
+            + "; no forecast is proved public before its gate by this run. Commit times were checked, "
+            "and they can show a forecast was late but not that it was on time."
+        )
 
     for warning in warnings:
         print(f"::warning::{warning}")
@@ -399,6 +538,9 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     rows, _ = read_ledger(LEDGER_PATH)
     print(f"OK: {len(sealed_days(PREDICTIONS_DIR))} sealed v2 forecast(s) and {len(rows)} ledger row(s) agree.")
+    if received is not None:
+        proved = sum(1 for stamp in received.values() if stamp is not None)
+        print(f"OK: GitHub's push record shows {proved} of {len(received)} forecast(s) public before the gate.")
     return 0
 
 

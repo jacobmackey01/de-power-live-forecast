@@ -37,7 +37,7 @@ from .calls import (
     spike_threshold,
 )
 from .features import assert_no_leakage, build_dataset, local_grid, slot_index
-from .inputs import InputError, LiveInputs, check_prices, fetch_live_inputs
+from .inputs import InputError, LiveInputs, check_prices, check_weather, fetch_live_inputs
 from .model import V2Model, load_warm_start
 
 SCHEMA_VERSION = 2
@@ -104,6 +104,13 @@ def build_prediction(
         price_check = check_prices(inputs.prices)
     except InputError as exc:
         raise SealError(f"price history is not complete: {exc}") from exc
+    # The weather is checked as it arrived, before any feature is built from
+    # it. The check on the finished model inputs further down cannot see a
+    # missing 02:00, because by then the grid has filled it.
+    try:
+        weather_check = check_weather(inputs.weather, target)
+    except InputError as exc:
+        raise SealError(f"weather forecast is not complete: {exc}") from exc
 
     model = V2Model.load(model_dir)  # verifies artefacts and source against the manifest
     ds = build_dataset(inputs.prices, inputs.weather, last_target_day=target)
@@ -115,8 +122,7 @@ def build_prediction(
             "seven days before them are incomplete"
         )
     # Every input the model reads must be present. The model itself would
-    # accept a gap, and the feature grid would quietly fill a missing 02:00 on
-    # any day, so an incomplete input is refused here, before either can.
+    # accept a gap, so an incomplete input is refused here, before it can.
     X, _ = ds.design()
     gaps = X.loc[slots, model.feature_columns].isna().sum()
     gaps = gaps[gaps > 0]
@@ -208,6 +214,7 @@ def build_prediction(
         "leakage_check": leakage,
         "price_check": price_check,
         "weather_coverage": inputs.weather_coverage,
+        "weather_check": weather_check,
         "scale_eur_mwh": number(scale.iloc[0], 4),
         "spike_threshold_eur_mwh": number(threshold, 3),
         "error_pool": pool_report,
