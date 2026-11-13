@@ -1,0 +1,1191 @@
+{
+  "schema_version": 1,
+  "bidding_zone": "DE-LU",
+  "delivery_date_local": "2026-11-14",
+  "n_hours": 24,
+  "dst_note": "standard 24-hour day",
+  "sealed_at_utc": "2026-11-13T06:38:56.743918+00:00",
+  "auction_closes_utc": "2026-11-13T11:00:00+00:00",
+  "minutes_before_close": 261.1,
+  "model_version": "v1",
+  "model_source_sha256": "7acbc7bddc52afaed2da1c1ff6b639aa50cd240f77b6bd211373b94e45ba48df",
+  "model_trained_at_utc": "2026-08-01T09:27:38.709676+00:00",
+  "information_cutoff_utc": "2026-11-13T06:38:56.649851+00:00",
+  "leakage_check": {
+    "cutoff_utc": "2026-11-13T06:38:56.649851+00:00",
+    "latest_price_lag_utc": "2026-11-13T22:00:00+00:00",
+    "latest_price_lag_delivery_day": "2026-11-13",
+    "cutoff_local_day": "2026-11-13",
+    "latest_price_used_utc": "2026-11-13T06:00:00+00:00",
+    "latest_actual_used_utc": "2026-11-13T06:00:00+00:00",
+    "actuals_after_cutoff_present_but_unused": true,
+    "n_target_hours": 24,
+    "ok": true
+  },
+  "identity_check": {
+    "checked_at_utc": "2026-11-13T06:31:06.475958+00:00",
+    "renewables_identity": {
+      "max_abs_error_mw": 0.010000000009313226,
+      "n_compared": 1273,
+      "ok": true
+    },
+    "residual_load_identity": {
+      "max_abs_error_mw": 0.010000000009313226,
+      "n_compared": 1273,
+      "ok": true
+    },
+    "all_ok": true
+  },
+  "weather_coverage": {
+    "sites_requested": 8,
+    "sites_returned": 5,
+    "sites_failed": {
+      "bremerhaven_n": "failed to fetch https://api.open-meteo.com/v1/forecast?latitude=53.55&longitude=8.58&hourly=wind_speed_100m%2Cwind_direction_100m%2Cwind_gusts_10m%2Ctemperature_2m%2Cshortwave_radiation%2Cdirect_radiation%2Ccloud_cover%2Csurface_pressure&forecast_days=3&timezone=UTC&wind_speed_unit=ms&temperature_unit=celsius&precipitation_unit=mm: <urlopen error _ssl.c:994: The handshake operation timed out>",
+      "rostock_ne": "failed to fetch https://api.open-meteo.com/v1/forecast?latitude=54.09&longitude=12.14&hourly=wind_speed_100m%2Cwind_direction_100m%2Cwind_gusts_10m%2Ctemperature_2m%2Cshortwave_radiation%2Cdirect_radiation%2Ccloud_cover%2Csurface_pressure&forecast_days=3&timezone=UTC&wind_speed_unit=ms&temperature_unit=celsius&precipitation_unit=mm: <urlopen error _ssl.c:994: The handshake operation timed out>",
+      "magdeburg_e": "failed to fetch https://api.open-meteo.com/v1/forecast?latitude=52.13&longitude=11.62&hourly=wind_speed_100m%2Cwind_direction_100m%2Cwind_gusts_10m%2Ctemperature_2m%2Cshortwave_radiation%2Cdirect_radiation%2Ccloud_cover%2Csurface_pressure&forecast_days=3&timezone=UTC&wind_speed_unit=ms&temperature_unit=celsius&precipitation_unit=mm: <urlopen error _ssl.c:994: The handshake operation timed out>"
+    },
+    "wind_weight_covered": 0.44,
+    "solar_weight_covered": 0.81,
+    "load_weight_covered": 0.79,
+    "n_hours": 72,
+    "first_hour_utc": "2026-11-13T00:00:00+00:00",
+    "last_hour_utc": "2026-11-15T23:00:00+00:00"
+  },
+  "predictions": [
+    {
+      "hour_utc": "2026-11-13T23:00:00+00:00",
+      "hour_local": "2026-11-14T00:00:00+01:00",
+      "call_a_price_eur_mwh": 154.519,
+      "call_b_prob_negative": 4e-05,
+      "call_c_quantiles": {
+        "0.1": 109.293,
+        "0.25": 118.106,
+        "0.5": 154.2,
+        "0.75": 192.17,
+        "0.9": 209.545
+      },
+      "call_c_interval_50": [
+        118.106,
+        192.17
+      ],
+      "call_c_interval_80": [
+        109.293,
+        209.545
+      ]
+    },
+    {
+      "hour_utc": "2026-11-14T00:00:00+00:00",
+      "hour_local": "2026-11-14T01:00:00+01:00",
+      "call_a_price_eur_mwh": 172.45,
+      "call_b_prob_negative": 4e-05,
+      "call_c_quantiles": {
+        "0.1": 150.52,
+        "0.25": 158.185,
+        "0.5": 166.959,
+        "0.75": 201.12,
+        "0.9": 218.167
+      },
+      "call_c_interval_50": [
+        158.185,
+        201.12
+      ],
+      "call_c_interval_80": [
+        150.52,
+        218.167
+      ]
+    },
+    {
+      "hour_utc": "2026-11-14T01:00:00+00:00",
+      "hour_local": "2026-11-14T02:00:00+01:00",
+      "call_a_price_eur_mwh": 168.492,
+      "call_b_prob_negative": 5e-05,
+      "call_c_quantiles": {
+        "0.1": 144.494,
+        "0.25": 160.902,
+        "0.5": 170.444,
+        "0.75": 197.063,
+        "0.9": 214.368
+      },
+      "call_c_interval_50": [
+        160.902,
+        197.063
+      ],
+      "call_c_interval_80": [
+        144.494,
+        214.368
+      ]
+    },
+    {
+      "hour_utc": "2026-11-14T02:00:00+00:00",
+      "hour_local": "2026-11-14T03:00:00+01:00",
+      "call_a_price_eur_mwh": 156.674,
+      "call_b_prob_negative": 9e-05,
+      "call_c_quantiles": {
+        "0.1": 136.823,
+        "0.25": 142.453,
+        "0.5": 153.319,
+        "0.75": 187.396,
+        "0.9": 210.392
+      },
+      "call_c_interval_50": [
+        142.453,
+        187.396
+      ],
+      "call_c_interval_80": [
+        136.823,
+        210.392
+      ]
+    },
+    {
+      "hour_utc": "2026-11-14T03:00:00+00:00",
+      "hour_local": "2026-11-14T04:00:00+01:00",
+      "call_a_price_eur_mwh": 150.18,
+      "call_b_prob_negative": 0.00012,
+      "call_c_quantiles": {
+        "0.1": 126.089,
+        "0.25": 135.162,
+        "0.5": 141.172,
+        "0.75": 184.731,
+        "0.9": 199.019
+      },
+      "call_c_interval_50": [
+        135.162,
+        184.731
+      ],
+      "call_c_interval_80": [
+        126.089,
+        199.019
+      ]
+    },
+    {
+      "hour_utc": "2026-11-14T04:00:00+00:00",
+      "hour_local": "2026-11-14T05:00:00+01:00",
+      "call_a_price_eur_mwh": 152.651,
+      "call_b_prob_negative": 0.00012,
+      "call_c_quantiles": {
+        "0.1": 125.307,
+        "0.25": 134.188,
+        "0.5": 139.126,
+        "0.75": 185.31,
+        "0.9": 197.535
+      },
+      "call_c_interval_50": [
+        134.188,
+        185.31
+      ],
+      "call_c_interval_80": [
+        125.307,
+        197.535
+      ]
+    },
+    {
+      "hour_utc": "2026-11-14T05:00:00+00:00",
+      "hour_local": "2026-11-14T06:00:00+01:00",
+      "call_a_price_eur_mwh": 145.595,
+      "call_b_prob_negative": 0.00011,
+      "call_c_quantiles": {
+        "0.1": 115.602,
+        "0.25": 135.461,
+        "0.5": 148.35,
+        "0.75": 180.044,
+        "0.9": 196.37
+      },
+      "call_c_interval_50": [
+        135.461,
+        180.044
+      ],
+      "call_c_interval_80": [
+        115.602,
+        196.37
+      ]
+    },
+    {
+      "hour_utc": "2026-11-14T06:00:00+00:00",
+      "hour_local": "2026-11-14T07:00:00+01:00",
+      "call_a_price_eur_mwh": 138.774,
+      "call_b_prob_negative": 0.00011,
+      "call_c_quantiles": {
+        "0.1": 80.312,
+        "0.25": 112.269,
+        "0.5": 149.481,
+        "0.75": 188.404,
+        "0.9": 200.368
+      },
+      "call_c_interval_50": [
+        112.269,
+        188.404
+      ],
+      "call_c_interval_80": [
+        80.312,
+        200.368
+      ]
+    },
+    {
+      "hour_utc": "2026-11-14T07:00:00+00:00",
+      "hour_local": "2026-11-14T08:00:00+01:00",
+      "call_a_price_eur_mwh": 138.135,
+      "call_b_prob_negative": 0.00023,
+      "call_c_quantiles": {
+        "0.1": 110.851,
+        "0.25": 115.929,
+        "0.5": 142.105,
+        "0.75": 177.573,
+        "0.9": 192.655
+      },
+      "call_c_interval_50": [
+        115.929,
+        177.573
+      ],
+      "call_c_interval_80": [
+        110.851,
+        192.655
+      ]
+    },
+    {
+      "hour_utc": "2026-11-14T08:00:00+00:00",
+      "hour_local": "2026-11-14T09:00:00+01:00",
+      "call_a_price_eur_mwh": 134.057,
+      "call_b_prob_negative": 0.00036,
+      "call_c_quantiles": {
+        "0.1": 100.385,
+        "0.25": 130.272,
+        "0.5": 136.137,
+        "0.75": 164.15,
+        "0.9": 188.465
+      },
+      "call_c_interval_50": [
+        130.272,
+        164.15
+      ],
+      "call_c_interval_80": [
+        100.385,
+        188.465
+      ]
+    },
+    {
+      "hour_utc": "2026-11-14T09:00:00+00:00",
+      "hour_local": "2026-11-14T10:00:00+01:00",
+      "call_a_price_eur_mwh": 123.478,
+      "call_b_prob_negative": 0.00058,
+      "call_c_quantiles": {
+        "0.1": 76.646,
+        "0.25": 116.02,
+        "0.5": 121.958,
+        "0.75": 149.234,
+        "0.9": 175.927
+      },
+      "call_c_interval_50": [
+        116.02,
+        149.234
+      ],
+      "call_c_interval_80": [
+        76.646,
+        175.927
+      ]
+    },
+    {
+      "hour_utc": "2026-11-14T10:00:00+00:00",
+      "hour_local": "2026-11-14T11:00:00+01:00",
+      "call_a_price_eur_mwh": 120.389,
+      "call_b_prob_negative": 0.00064,
+      "call_c_quantiles": {
+        "0.1": 68.334,
+        "0.25": 104.988,
+        "0.5": 112.271,
+        "0.75": 142.927,
+        "0.9": 173.881
+      },
+      "call_c_interval_50": [
+        104.988,
+        142.927
+      ],
+      "call_c_interval_80": [
+        68.334,
+        173.881
+      ]
+    },
+    {
+      "hour_utc": "2026-11-14T11:00:00+00:00",
+      "hour_local": "2026-11-14T12:00:00+01:00",
+      "call_a_price_eur_mwh": 130.438,
+      "call_b_prob_negative": 0.00055,
+      "call_c_quantiles": {
+        "0.1": 79.109,
+        "0.25": 108.912,
+        "0.5": 120.391,
+        "0.75": 149.71,
+        "0.9": 182.846
+      },
+      "call_c_interval_50": [
+        108.912,
+        149.71
+      ],
+      "call_c_interval_80": [
+        79.109,
+        182.846
+      ]
+    },
+    {
+      "hour_utc": "2026-11-14T12:00:00+00:00",
+      "hour_local": "2026-11-14T13:00:00+01:00",
+      "call_a_price_eur_mwh": 127.032,
+      "call_b_prob_negative": 0.00156,
+      "call_c_quantiles": {
+        "0.1": 85.748,
+        "0.25": 111.908,
+        "0.5": 117.489,
+        "0.75": 148.19,
+        "0.9": 178.232
+      },
+      "call_c_interval_50": [
+        111.908,
+        148.19
+      ],
+      "call_c_interval_80": [
+        85.748,
+        178.232
+      ]
+    },
+    {
+      "hour_utc": "2026-11-14T13:00:00+00:00",
+      "hour_local": "2026-11-14T14:00:00+01:00",
+      "call_a_price_eur_mwh": 137.247,
+      "call_b_prob_negative": 0.00077,
+      "call_c_quantiles": {
+        "0.1": 84.036,
+        "0.25": 87.993,
+        "0.5": 112.471,
+        "0.75": 147.345,
+        "0.9": 173.962
+      },
+      "call_c_interval_50": [
+        87.993,
+        147.345
+      ],
+      "call_c_interval_80": [
+        84.036,
+        173.962
+      ]
+    },
+    {
+      "hour_utc": "2026-11-14T14:00:00+00:00",
+      "hour_local": "2026-11-14T15:00:00+01:00",
+      "call_a_price_eur_mwh": 136.585,
+      "call_b_prob_negative": 0.00026,
+      "call_c_quantiles": {
+        "0.1": 92.448,
+        "0.25": 112.584,
+        "0.5": 136.743,
+        "0.75": 166.633,
+        "0.9": 212.348
+      },
+      "call_c_interval_50": [
+        112.584,
+        166.633
+      ],
+      "call_c_interval_80": [
+        92.448,
+        212.348
+      ]
+    },
+    {
+      "hour_utc": "2026-11-14T15:00:00+00:00",
+      "hour_local": "2026-11-14T16:00:00+01:00",
+      "call_a_price_eur_mwh": 172.981,
+      "call_b_prob_negative": 0.00018,
+      "call_c_quantiles": {
+        "0.1": 108.439,
+        "0.25": 142.946,
+        "0.5": 168.363,
+        "0.75": 198.854,
+        "0.9": 245.97
+      },
+      "call_c_interval_50": [
+        142.946,
+        198.854
+      ],
+      "call_c_interval_80": [
+        108.439,
+        245.97
+      ]
+    },
+    {
+      "hour_utc": "2026-11-14T16:00:00+00:00",
+      "hour_local": "2026-11-14T17:00:00+01:00",
+      "call_a_price_eur_mwh": 179.709,
+      "call_b_prob_negative": 5e-05,
+      "call_c_quantiles": {
+        "0.1": 64.31,
+        "0.25": 147.334,
+        "0.5": 172.262,
+        "0.75": 202.749,
+        "0.9": 248.417
+      },
+      "call_c_interval_50": [
+        147.334,
+        202.749
+      ],
+      "call_c_interval_80": [
+        64.31,
+        248.417
+      ]
+    },
+    {
+      "hour_utc": "2026-11-14T17:00:00+00:00",
+      "hour_local": "2026-11-14T18:00:00+01:00",
+      "call_a_price_eur_mwh": 175.914,
+      "call_b_prob_negative": 9e-05,
+      "call_c_quantiles": {
+        "0.1": 92.716,
+        "0.25": 161.933,
+        "0.5": 173.438,
+        "0.75": 203.916,
+        "0.9": 247.589
+      },
+      "call_c_interval_50": [
+        161.933,
+        203.916
+      ],
+      "call_c_interval_80": [
+        92.716,
+        247.589
+      ]
+    },
+    {
+      "hour_utc": "2026-11-14T18:00:00+00:00",
+      "hour_local": "2026-11-14T19:00:00+01:00",
+      "call_a_price_eur_mwh": 179.879,
+      "call_b_prob_negative": 6e-05,
+      "call_c_quantiles": {
+        "0.1": 84.914,
+        "0.25": 155.495,
+        "0.5": 177.545,
+        "0.75": 202.603,
+        "0.9": 246.788
+      },
+      "call_c_interval_50": [
+        155.495,
+        202.603
+      ],
+      "call_c_interval_80": [
+        84.914,
+        246.788
+      ]
+    },
+    {
+      "hour_utc": "2026-11-14T19:00:00+00:00",
+      "hour_local": "2026-11-14T20:00:00+01:00",
+      "call_a_price_eur_mwh": 163.243,
+      "call_b_prob_negative": 5e-05,
+      "call_c_quantiles": {
+        "0.1": 74.315,
+        "0.25": 139.688,
+        "0.5": 165.82,
+        "0.75": 193.625,
+        "0.9": 232.798
+      },
+      "call_c_interval_50": [
+        139.688,
+        193.625
+      ],
+      "call_c_interval_80": [
+        74.315,
+        232.798
+      ]
+    },
+    {
+      "hour_utc": "2026-11-14T20:00:00+00:00",
+      "hour_local": "2026-11-14T21:00:00+01:00",
+      "call_a_price_eur_mwh": 139.473,
+      "call_b_prob_negative": 5e-05,
+      "call_c_quantiles": {
+        "0.1": 61.831,
+        "0.25": 114.735,
+        "0.5": 148.899,
+        "0.75": 171.825,
+        "0.9": 199.368
+      },
+      "call_c_interval_50": [
+        114.735,
+        171.825
+      ],
+      "call_c_interval_80": [
+        61.831,
+        199.368
+      ]
+    },
+    {
+      "hour_utc": "2026-11-14T21:00:00+00:00",
+      "hour_local": "2026-11-14T22:00:00+01:00",
+      "call_a_price_eur_mwh": 157.447,
+      "call_b_prob_negative": 5e-05,
+      "call_c_quantiles": {
+        "0.1": 104.951,
+        "0.25": 126.108,
+        "0.5": 155.804,
+        "0.75": 191.188,
+        "0.9": 207.334
+      },
+      "call_c_interval_50": [
+        126.108,
+        191.188
+      ],
+      "call_c_interval_80": [
+        104.951,
+        207.334
+      ]
+    },
+    {
+      "hour_utc": "2026-11-14T22:00:00+00:00",
+      "hour_local": "2026-11-14T23:00:00+01:00",
+      "call_a_price_eur_mwh": 153.311,
+      "call_b_prob_negative": 5e-05,
+      "call_c_quantiles": {
+        "0.1": 105.587,
+        "0.25": 137.971,
+        "0.5": 145.762,
+        "0.75": 185.741,
+        "0.9": 202.397
+      },
+      "call_c_interval_50": [
+        137.971,
+        185.741
+      ],
+      "call_c_interval_80": [
+        105.587,
+        202.397
+      ]
+    }
+  ],
+  "input_provenance": {
+    "smard": [
+      {
+        "url": "https://www.smard.de/app/chart_data/4169/DE/index_hour.json",
+        "sha256": "2646568c00db910c6a38e3ff4ac79db7cb102f6855df2ff880dd9ad2607cb700",
+        "n_bytes": 5952,
+        "fetched_at_utc": "2026-11-13T06:30:03.606878+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/4169/DE/4169_DE_hour_1789941600000.json",
+        "sha256": "aa4490b4727d919bb91825c0c5ebee5c47b8b7ae8a27abe78b976f90a6d9128a",
+        "n_bytes": 3856,
+        "fetched_at_utc": "2026-11-13T06:30:04.627539+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/4169/DE/4169_DE_hour_1790546400000.json",
+        "sha256": "8c5030ae148b9dfdbfb344e2c33108a4b6e3a2946f2d6d04127caaa0eeaf7f56",
+        "n_bytes": 3889,
+        "fetched_at_utc": "2026-11-13T06:30:05.662960+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/4169/DE/4169_DE_hour_1791151200000.json",
+        "sha256": "10e3dc126cd5832cdee80f5e82d88c5352b18cca3254793c095d2a0663ffa64a",
+        "n_bytes": 3848,
+        "fetched_at_utc": "2026-11-13T06:30:06.700461+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/4169/DE/4169_DE_hour_1791756000000.json",
+        "sha256": "a537132991d640942c1f4abc00348af7a74b782d2be8eb8c7549252897c331ca",
+        "n_bytes": 3907,
+        "fetched_at_utc": "2026-11-13T06:30:07.745460+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/4169/DE/4169_DE_hour_1792360800000.json",
+        "sha256": "506460685a4c02469c09084eed41174cec6c707eb17b1afdbd7387f88eff97f4",
+        "n_bytes": 3843,
+        "fetched_at_utc": "2026-11-13T06:30:08.330539+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/4169/DE/4169_DE_hour_1792969200000.json",
+        "sha256": "8970b37fc10a6588dfa793e95dc4d1b3bdfc58b011bdd6fcff2c020837d6088c",
+        "n_bytes": 3889,
+        "fetched_at_utc": "2026-11-13T06:30:08.926878+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/4169/DE/4169_DE_hour_1793574000000.json",
+        "sha256": "cb17ed8436e6f376b6e82d1ac637920746f1f435462201295d1144a92a75ae0b",
+        "n_bytes": 3913,
+        "fetched_at_utc": "2026-11-13T06:30:09.523779+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/4169/DE/4169_DE_hour_1794178800000.json",
+        "sha256": "cdb1738f62fa524563e1aadd41510eb15d2d5c1f74c7fc69b7e46d7a8f10ac12",
+        "n_bytes": 3815,
+        "fetched_at_utc": "2026-11-13T06:30:10.110388+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/410/DE/index_hour.json",
+        "sha256": "b309cdcde880ca47c2825493e9e65060c625a8d251e8050620a3b2ffac76db21",
+        "n_bytes": 8696,
+        "fetched_at_utc": "2026-11-13T06:30:10.896806+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/410/DE/410_DE_hour_1789941600000.json",
+        "sha256": "417d0cc189de08f95ada749e02cdebba8fd131a51f94249615c8042b2b4857ab",
+        "n_bytes": 4247,
+        "fetched_at_utc": "2026-11-13T06:30:11.508863+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/410/DE/410_DE_hour_1790546400000.json",
+        "sha256": "3452f9c3796ffa7c5e75c11a08f1eecf8c324b238b6b44dad1e0c5f76cf4756e",
+        "n_bytes": 4237,
+        "fetched_at_utc": "2026-11-13T06:30:12.096552+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/410/DE/410_DE_hour_1791151200000.json",
+        "sha256": "aa72dca6a9472c095409399df56396cf5d5e02507824061b18bb8a8626695989",
+        "n_bytes": 4246,
+        "fetched_at_utc": "2026-11-13T06:30:13.157590+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/410/DE/410_DE_hour_1791756000000.json",
+        "sha256": "cbe6540f94ee8587bc1a890efc57658ef6bcde14f423c2c0c284534fa061fe9b",
+        "n_bytes": 4247,
+        "fetched_at_utc": "2026-11-13T06:30:13.745204+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/410/DE/410_DE_hour_1792360800000.json",
+        "sha256": "ba396213d4ec9e9ea18b0a6a4f37d03525695c374c3b571ec8d4a29b942f3940",
+        "n_bytes": 4268,
+        "fetched_at_utc": "2026-11-13T06:30:14.557699+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/410/DE/410_DE_hour_1792969200000.json",
+        "sha256": "c1c661a7f4830044d9ab77a668b7ca26cf4fb73ad28fb393ef2e5a9c22c1985a",
+        "n_bytes": 4251,
+        "fetched_at_utc": "2026-11-13T06:30:15.141310+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/410/DE/410_DE_hour_1793574000000.json",
+        "sha256": "fa7fa2b4c7faedf6bb5dcab767212986791185b75dca3a2dafd6d35c73aded65",
+        "n_bytes": 4247,
+        "fetched_at_utc": "2026-11-13T06:30:15.725054+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/410/DE/410_DE_hour_1794178800000.json",
+        "sha256": "cff0f4f42c567f33c07805338cce0ed28ae31316e3985f4f2cc2b3b742d4d880",
+        "n_bytes": 3988,
+        "fetched_at_utc": "2026-11-13T06:30:16.316832+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/4067/DE/index_hour.json",
+        "sha256": "b309cdcde880ca47c2825493e9e65060c625a8d251e8050620a3b2ffac76db21",
+        "n_bytes": 8696,
+        "fetched_at_utc": "2026-11-13T06:30:17.101696+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/4067/DE/4067_DE_hour_1789941600000.json",
+        "sha256": "f11bf42b518c74d6a6103579fce0d84f050451b675899c7f5b1e59ff09b386f8",
+        "n_bytes": 4138,
+        "fetched_at_utc": "2026-11-13T06:30:17.707866+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/4067/DE/4067_DE_hour_1790546400000.json",
+        "sha256": "711b63b70b2816f25b48a4c5406af8e81b42f4fbd976a4917abdff2cffbef80b",
+        "n_bytes": 4109,
+        "fetched_at_utc": "2026-11-13T06:30:18.311984+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/4067/DE/4067_DE_hour_1791151200000.json",
+        "sha256": "c004e90cbcceab2ade7b12262f22ce3f72fa41bb8d668f55844ed767a8186160",
+        "n_bytes": 4181,
+        "fetched_at_utc": "2026-11-13T06:30:19.389790+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/4067/DE/4067_DE_hour_1791756000000.json",
+        "sha256": "374fa93dca2d1bc8f9d6cd7762551f0241ca66a88b6df2dd331bee048736c8e7",
+        "n_bytes": 4178,
+        "fetched_at_utc": "2026-11-13T06:30:19.991864+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/4067/DE/4067_DE_hour_1792360800000.json",
+        "sha256": "872c2b310ffaeccbaf894c7ea36607b052096a741980d97ec9f0bed016b728e9",
+        "n_bytes": 4257,
+        "fetched_at_utc": "2026-11-13T06:30:20.583722+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/4067/DE/4067_DE_hour_1792969200000.json",
+        "sha256": "23f3eb05a5edee1c24be110ae848463e4b62f8ee8937e0c6b1a5d95bd440d6bb",
+        "n_bytes": 4133,
+        "fetched_at_utc": "2026-11-13T06:30:21.172349+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/4067/DE/4067_DE_hour_1793574000000.json",
+        "sha256": "4f73edff18b00419ece6558e6d3ad16ecaadd166f8ff90ac3c941161864d2aec",
+        "n_bytes": 4152,
+        "fetched_at_utc": "2026-11-13T06:30:22.159510+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/4067/DE/4067_DE_hour_1794178800000.json",
+        "sha256": "ded9f560fee7b9cf71259257d67cdbff487d43521d5be155ce501f7093adc511",
+        "n_bytes": 3908,
+        "fetched_at_utc": "2026-11-13T06:30:22.745389+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/1225/DE/index_hour.json",
+        "sha256": "b309cdcde880ca47c2825493e9e65060c625a8d251e8050620a3b2ffac76db21",
+        "n_bytes": 8696,
+        "fetched_at_utc": "2026-11-13T06:30:23.329897+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/1225/DE/1225_DE_hour_1789941600000.json",
+        "sha256": "2d4a2435a2f4007e4bec832cb08c725faddc565c8b9e2bad2293b8895ae73838",
+        "n_bytes": 4008,
+        "fetched_at_utc": "2026-11-13T06:30:23.904941+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/1225/DE/1225_DE_hour_1790546400000.json",
+        "sha256": "ecd150cf4dc8b47f3635180b07cd338ae001a9c622d491879e724eca27bc9bb1",
+        "n_bytes": 4027,
+        "fetched_at_utc": "2026-11-13T06:30:24.906584+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/1225/DE/1225_DE_hour_1791151200000.json",
+        "sha256": "3c34f04904e36d2afaa385d6eac0c71a2a9d35616317170aa4b9de2e4dbde722",
+        "n_bytes": 4044,
+        "fetched_at_utc": "2026-11-13T06:30:25.694603+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/1225/DE/1225_DE_hour_1791756000000.json",
+        "sha256": "2378eb2287a9eef5dee66001cf327848317bd25c8a1d5c5d0963313ef1836579",
+        "n_bytes": 4080,
+        "fetched_at_utc": "2026-11-13T06:30:26.294577+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/1225/DE/1225_DE_hour_1792360800000.json",
+        "sha256": "1dfdfc1d8de6ea5db7ec6e1641446d7f7a7fcb126b85db3871e803a8438012ca",
+        "n_bytes": 4103,
+        "fetched_at_utc": "2026-11-13T06:30:26.879219+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/1225/DE/1225_DE_hour_1792969200000.json",
+        "sha256": "7d14298c8d41841adcd33d2dcc2c0f185f3d5295726173fbe8510620cf4c7820",
+        "n_bytes": 3974,
+        "fetched_at_utc": "2026-11-13T06:30:27.447400+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/1225/DE/1225_DE_hour_1793574000000.json",
+        "sha256": "07b35b74122a065c3dfa3047d0d55674e5036ed928a7cc3299a29420c95c7895",
+        "n_bytes": 4069,
+        "fetched_at_utc": "2026-11-13T06:30:28.043662+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/1225/DE/1225_DE_hour_1794178800000.json",
+        "sha256": "4f7968d6550a790a6740d6a385f66ce06018605022ba69dce5d72dd6e9f1a26c",
+        "n_bytes": 3840,
+        "fetched_at_utc": "2026-11-13T06:30:28.645913+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/4068/DE/index_hour.json",
+        "sha256": "b309cdcde880ca47c2825493e9e65060c625a8d251e8050620a3b2ffac76db21",
+        "n_bytes": 8696,
+        "fetched_at_utc": "2026-11-13T06:30:29.240464+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/4068/DE/4068_DE_hour_1789941600000.json",
+        "sha256": "97ee2f4b4f1e551efb78052d137bb332ae7acb5c9e5a1487dbe8a4f36bc78be2",
+        "n_bytes": 3837,
+        "fetched_at_utc": "2026-11-13T06:30:29.858673+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/4068/DE/4068_DE_hour_1790546400000.json",
+        "sha256": "0c56e176e5b8ad0d6ab509d27db00e74ade6ffa5f432b73339fe86f94b1cf249",
+        "n_bytes": 3811,
+        "fetched_at_utc": "2026-11-13T06:30:30.455193+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/4068/DE/4068_DE_hour_1791151200000.json",
+        "sha256": "96e0dddb140cb866b335ae153ceec1b191d41655a97529a0d825f40f460ac184",
+        "n_bytes": 3797,
+        "fetched_at_utc": "2026-11-13T06:30:31.050256+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/4068/DE/4068_DE_hour_1791756000000.json",
+        "sha256": "224fa662fdbd8039e0696b95415c4f80b12adc1402d0830b52f0a2407ccd7efe",
+        "n_bytes": 3775,
+        "fetched_at_utc": "2026-11-13T06:30:31.645874+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/4068/DE/4068_DE_hour_1792360800000.json",
+        "sha256": "b3aad80032bc0cef5ca98a5d7cb15dbaaefbaf0609240f9fadf6c752d3c13819",
+        "n_bytes": 3775,
+        "fetched_at_utc": "2026-11-13T06:30:32.235796+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/4068/DE/4068_DE_hour_1792969200000.json",
+        "sha256": "f234f70e3bff3f8c5f292b373e25325ccd81891185d32ce320fdf373b52a4f68",
+        "n_bytes": 3748,
+        "fetched_at_utc": "2026-11-13T06:30:32.830737+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/4068/DE/4068_DE_hour_1793574000000.json",
+        "sha256": "ddb81635a637538a198c82eaa6c3d868a97caa9e112dfd3c1ec0ae4bcc9d0caa",
+        "n_bytes": 3733,
+        "fetched_at_utc": "2026-11-13T06:30:33.414940+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/4068/DE/4068_DE_hour_1794178800000.json",
+        "sha256": "9deaa4826202726c8d2a655e3c0958c127a768d1692fafe7998f33c167fa7285",
+        "n_bytes": 3649,
+        "fetched_at_utc": "2026-11-13T06:30:34.000003+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/122/DE/index_hour.json",
+        "sha256": "b309cdcde880ca47c2825493e9e65060c625a8d251e8050620a3b2ffac76db21",
+        "n_bytes": 8696,
+        "fetched_at_utc": "2026-11-13T06:30:34.595769+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/122/DE/122_DE_hour_1789941600000.json",
+        "sha256": "d64b1be9061dd349529519d7c140dc650c2534055f522db9745f420598da9181",
+        "n_bytes": 4249,
+        "fetched_at_utc": "2026-11-13T06:30:35.200174+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/122/DE/122_DE_hour_1790546400000.json",
+        "sha256": "8ff576cea957d0f773673d4addd6682bebf1a1b3e3126f2157714bd1480de833",
+        "n_bytes": 4246,
+        "fetched_at_utc": "2026-11-13T06:30:35.800806+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/122/DE/122_DE_hour_1791151200000.json",
+        "sha256": "919cdfc456b28d7731070da81ad4df52ac95ddf0214aea523ec644c9c9e804ce",
+        "n_bytes": 4253,
+        "fetched_at_utc": "2026-11-13T06:30:36.391972+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/122/DE/122_DE_hour_1791756000000.json",
+        "sha256": "0aee4c4939bae6ae350c38a1312dfb87156f5d1d25e85419fdd6892a93f981cd",
+        "n_bytes": 4246,
+        "fetched_at_utc": "2026-11-13T06:30:36.991980+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/122/DE/122_DE_hour_1792360800000.json",
+        "sha256": "ccb7c3def18410f7b005fe2d405722e33551c767d47bd32d44a64a4d62128290",
+        "n_bytes": 4270,
+        "fetched_at_utc": "2026-11-13T06:30:37.589839+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/122/DE/122_DE_hour_1792969200000.json",
+        "sha256": "8de349bbb351841609669ae6b1f5797f1bdbd4dc6e1c0c2d60ddf2196934e8f4",
+        "n_bytes": 4248,
+        "fetched_at_utc": "2026-11-13T06:30:38.155912+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/122/DE/122_DE_hour_1793574000000.json",
+        "sha256": "d738e2e134ebec917af3299d5d7b632add99a60c410a0f40a7a5311771139ed1",
+        "n_bytes": 4245,
+        "fetched_at_utc": "2026-11-13T06:30:38.759064+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/122/DE/122_DE_hour_1794178800000.json",
+        "sha256": "058e699bf737394802e359cc1627d1f9ccab9f73dcda9d41d566c3da9eb508f0",
+        "n_bytes": 4061,
+        "fetched_at_utc": "2026-11-13T06:30:39.338491+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/5097/DE/index_hour.json",
+        "sha256": "b309cdcde880ca47c2825493e9e65060c625a8d251e8050620a3b2ffac76db21",
+        "n_bytes": 8696,
+        "fetched_at_utc": "2026-11-13T06:30:39.903148+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/5097/DE/5097_DE_hour_1789941600000.json",
+        "sha256": "ee1e52a8d1434a55e75a71ce4a76308af3a78399f768cc92eba9c472a288b6ce",
+        "n_bytes": 4192,
+        "fetched_at_utc": "2026-11-13T06:30:40.493046+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/5097/DE/5097_DE_hour_1790546400000.json",
+        "sha256": "9b78500eec99cc1e0fc0dc6248b8018df4520ec78d275f16cd0d839045fd3894",
+        "n_bytes": 4179,
+        "fetched_at_utc": "2026-11-13T06:30:41.099934+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/5097/DE/5097_DE_hour_1791151200000.json",
+        "sha256": "3efc0888c00736bd4a0ea2d4bf676dd2202610c8728bb105156348299bd37fd9",
+        "n_bytes": 4226,
+        "fetched_at_utc": "2026-11-13T06:30:41.702222+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/5097/DE/5097_DE_hour_1791756000000.json",
+        "sha256": "116ce117e925f39c10186774c3381869a086054f71da2eb8943c32db864dfb81",
+        "n_bytes": 4235,
+        "fetched_at_utc": "2026-11-13T06:30:42.306896+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/5097/DE/5097_DE_hour_1792360800000.json",
+        "sha256": "1298bd1587a267c59531b2d9876e8ad435737e286b9b3fe6cfea96b90b11a530",
+        "n_bytes": 4276,
+        "fetched_at_utc": "2026-11-13T06:30:42.909583+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/5097/DE/5097_DE_hour_1792969200000.json",
+        "sha256": "063bd872afb137cfee7d8b08b9e937ea87b0ef81b359dc5dde6de1e48e5f7d79",
+        "n_bytes": 4178,
+        "fetched_at_utc": "2026-11-13T06:30:43.511657+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/5097/DE/5097_DE_hour_1793574000000.json",
+        "sha256": "c52e37bbdaf28579f9d81319eeaf92c5415147c5fcf5bc9e084d4c95b3dcb629",
+        "n_bytes": 4203,
+        "fetched_at_utc": "2026-11-13T06:30:44.113744+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/5097/DE/5097_DE_hour_1794178800000.json",
+        "sha256": "31151e7f02f4780acebcf3012bcd61b0c93d3015ebc360c9bac78fcfd283131c",
+        "n_bytes": 3901,
+        "fetched_at_utc": "2026-11-13T06:30:44.698865+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/715/DE/index_hour.json",
+        "sha256": "b309cdcde880ca47c2825493e9e65060c625a8d251e8050620a3b2ffac76db21",
+        "n_bytes": 8696,
+        "fetched_at_utc": "2026-11-13T06:30:45.289555+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/715/DE/715_DE_hour_1789941600000.json",
+        "sha256": "e200b3ede730708040727a5deb5b98768671170d1fd88642e4353ba60292fb45",
+        "n_bytes": 4243,
+        "fetched_at_utc": "2026-11-13T06:30:45.892730+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/715/DE/715_DE_hour_1790546400000.json",
+        "sha256": "7f6293c9bcc8326a65bcebd8577e76c571bc0f84cf919da878c1ca4db086dc99",
+        "n_bytes": 4244,
+        "fetched_at_utc": "2026-11-13T06:30:46.506877+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/715/DE/715_DE_hour_1791151200000.json",
+        "sha256": "f820ed644f24a7cae1c1b6e960d011428621bc0c7e3c7ba8875714de11e8b50c",
+        "n_bytes": 4248,
+        "fetched_at_utc": "2026-11-13T06:30:47.114052+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/715/DE/715_DE_hour_1791756000000.json",
+        "sha256": "0325ab2a3121d2b0b6054ca89917e619ad6792b983120ea3fee71f4986d23f7d",
+        "n_bytes": 4247,
+        "fetched_at_utc": "2026-11-13T06:30:47.707500+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/715/DE/715_DE_hour_1792360800000.json",
+        "sha256": "430a759b312303b66db89b1ad990ef5410d7621ab69a7291cd08cf65033f2adb",
+        "n_bytes": 4259,
+        "fetched_at_utc": "2026-11-13T06:30:48.296054+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/715/DE/715_DE_hour_1792969200000.json",
+        "sha256": "f6ae40e92402c86c6822c6f05f0d24efaf5493d34b0611cbb4f1fc5828f5aa1a",
+        "n_bytes": 4242,
+        "fetched_at_utc": "2026-11-13T06:30:48.893668+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/715/DE/715_DE_hour_1793574000000.json",
+        "sha256": "98e0746983639ca35c957e04f0a9236e0928f9401567aca443b28f30eeb965a9",
+        "n_bytes": 4245,
+        "fetched_at_utc": "2026-11-13T06:30:49.482504+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/715/DE/715_DE_hour_1794178800000.json",
+        "sha256": "533b57169c958202c49bf8f0ed793b7f52756be37d011bacbb25472b537d9422",
+        "n_bytes": 3967,
+        "fetched_at_utc": "2026-11-13T06:30:50.068062+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/123/DE/index_hour.json",
+        "sha256": "b309cdcde880ca47c2825493e9e65060c625a8d251e8050620a3b2ffac76db21",
+        "n_bytes": 8696,
+        "fetched_at_utc": "2026-11-13T06:30:50.656581+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/123/DE/123_DE_hour_1789941600000.json",
+        "sha256": "5408c79fc4c1777e64f34ac79e8dbaed997e28982a5583e38e7eba74a81e8c3a",
+        "n_bytes": 4135,
+        "fetched_at_utc": "2026-11-13T06:30:51.248359+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/123/DE/123_DE_hour_1790546400000.json",
+        "sha256": "74f16bc6899fb2eb1de7409de6864484a090573c34ce9a53f30dc32a28172909",
+        "n_bytes": 4086,
+        "fetched_at_utc": "2026-11-13T06:30:51.840499+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/123/DE/123_DE_hour_1791151200000.json",
+        "sha256": "d68157ab35486d06afa92d1bc998a85451447fb400f5e6fa9a609e6e14fa2eb3",
+        "n_bytes": 4171,
+        "fetched_at_utc": "2026-11-13T06:30:52.442613+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/123/DE/123_DE_hour_1791756000000.json",
+        "sha256": "03b12d6d449e406ebd417a8ebcf939ec2486c4358fdc8e2d8d894670c6ba73ea",
+        "n_bytes": 4177,
+        "fetched_at_utc": "2026-11-13T06:30:53.048066+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/123/DE/123_DE_hour_1792360800000.json",
+        "sha256": "8e08f0b1a38d46c1aecb6bc7ae4647299e7dd8002e6e596bda059a3cfa1033ec",
+        "n_bytes": 4249,
+        "fetched_at_utc": "2026-11-13T06:30:53.648477+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/123/DE/123_DE_hour_1792969200000.json",
+        "sha256": "63269b6c72d6a847075ce6e21ea96b4afc2226648bc99f3d8519166643c587ed",
+        "n_bytes": 4125,
+        "fetched_at_utc": "2026-11-13T06:30:54.252603+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/123/DE/123_DE_hour_1793574000000.json",
+        "sha256": "39ce59be22c675dc8a75c91ee2e7a9de2be6736842a8cdbd71697d63be1ce733",
+        "n_bytes": 4142,
+        "fetched_at_utc": "2026-11-13T06:30:54.864056+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/123/DE/123_DE_hour_1794178800000.json",
+        "sha256": "3db7b78fc93b3393f938f96bbf7cc2f1d8353d51d9feb0f40035f99678f91eca",
+        "n_bytes": 3878,
+        "fetched_at_utc": "2026-11-13T06:30:55.476249+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/3791/DE/index_hour.json",
+        "sha256": "b309cdcde880ca47c2825493e9e65060c625a8d251e8050620a3b2ffac76db21",
+        "n_bytes": 8696,
+        "fetched_at_utc": "2026-11-13T06:30:56.079070+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/3791/DE/3791_DE_hour_1789941600000.json",
+        "sha256": "92390b64eec2115b76467649195fec919ff94d1ed7d9a9b8192c4ec212160a66",
+        "n_bytes": 4024,
+        "fetched_at_utc": "2026-11-13T06:30:56.680446+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/3791/DE/3791_DE_hour_1790546400000.json",
+        "sha256": "610c4e2e5dfa33d38751e022e9dcd1eba8cd7de46a42646473d4b25c1cae5329",
+        "n_bytes": 4032,
+        "fetched_at_utc": "2026-11-13T06:30:57.361238+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/3791/DE/3791_DE_hour_1791151200000.json",
+        "sha256": "5d4c4256187aabeefcc2741ccf687725237fd4338b32a38592be1ed9a61c5311",
+        "n_bytes": 4053,
+        "fetched_at_utc": "2026-11-13T06:30:57.958693+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/3791/DE/3791_DE_hour_1791756000000.json",
+        "sha256": "4380881833ef1224fb784ebb988d277193d3bf186875d3bb8d533048aeab5512",
+        "n_bytes": 4075,
+        "fetched_at_utc": "2026-11-13T06:30:58.564506+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/3791/DE/3791_DE_hour_1792360800000.json",
+        "sha256": "738826fb35ea210e34a029b62e8dc27f1f15cb45ed6fe05118957833f3655390",
+        "n_bytes": 4104,
+        "fetched_at_utc": "2026-11-13T06:30:59.185018+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/3791/DE/3791_DE_hour_1792969200000.json",
+        "sha256": "03c645fc5d8bded80a9a432896a03022fc0bfe556095078f761ea094af619d6c",
+        "n_bytes": 3983,
+        "fetched_at_utc": "2026-11-13T06:30:59.770943+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/3791/DE/3791_DE_hour_1793574000000.json",
+        "sha256": "781c21d54d10cdc95e2e9361c15cd19998fe90e04c6a0cda9aab773937bdebb2",
+        "n_bytes": 4053,
+        "fetched_at_utc": "2026-11-13T06:31:00.358653+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/3791/DE/3791_DE_hour_1794178800000.json",
+        "sha256": "d0223efcb23f57ccc814e4b18e773dbed4f0ff650a2a7cde5f4f0fb17fbf070b",
+        "n_bytes": 3872,
+        "fetched_at_utc": "2026-11-13T06:31:00.962836+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/125/DE/index_hour.json",
+        "sha256": "b309cdcde880ca47c2825493e9e65060c625a8d251e8050620a3b2ffac76db21",
+        "n_bytes": 8696,
+        "fetched_at_utc": "2026-11-13T06:31:01.707185+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/125/DE/125_DE_hour_1789941600000.json",
+        "sha256": "b8c2bb2e88cf84ac06e80c4fb175b20fa06aacf5c2ba2e83e0a10b9224a9a5bc",
+        "n_bytes": 3831,
+        "fetched_at_utc": "2026-11-13T06:31:02.307648+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/125/DE/125_DE_hour_1790546400000.json",
+        "sha256": "5eebc0120671b9f92a0ff146fdb2cbe54e356a8a6cc58c177b87c9b8ecb015ad",
+        "n_bytes": 3817,
+        "fetched_at_utc": "2026-11-13T06:31:02.887622+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/125/DE/125_DE_hour_1791151200000.json",
+        "sha256": "53f0e24659d758849d8ea8d96f31937deacc8673a23a79a0d2e6645181473c7d",
+        "n_bytes": 3793,
+        "fetched_at_utc": "2026-11-13T06:31:03.484701+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/125/DE/125_DE_hour_1791756000000.json",
+        "sha256": "ed35b32ebbe7cdefdbc0a35ae6da7af8f1a3b4e720d97b4b2788cc415b498fb7",
+        "n_bytes": 3779,
+        "fetched_at_utc": "2026-11-13T06:31:04.077857+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/125/DE/125_DE_hour_1792360800000.json",
+        "sha256": "786d2bb2e68f5bcb99bea9d4bff52e4315e276c856a07e2a0a2300825c7cb91d",
+        "n_bytes": 3770,
+        "fetched_at_utc": "2026-11-13T06:31:04.673536+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/125/DE/125_DE_hour_1792969200000.json",
+        "sha256": "45be002b5d8e77bde3ad083b2cec714e18feec37b3b9900311f96c2e8cd1fb02",
+        "n_bytes": 3761,
+        "fetched_at_utc": "2026-11-13T06:31:05.268953+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/125/DE/125_DE_hour_1793574000000.json",
+        "sha256": "54ea8b8307c6f7fd7da91a97c96bc310ed20d2fed1020e6342f094cb45164555",
+        "n_bytes": 3739,
+        "fetched_at_utc": "2026-11-13T06:31:05.873467+00:00"
+      },
+      {
+        "url": "https://www.smard.de/app/chart_data/125/DE/125_DE_hour_1794178800000.json",
+        "sha256": "762d161c5e4a3b7cb55f201fdc883768585f2b0128a743a6ae032ed0077c125b",
+        "n_bytes": 3651,
+        "fetched_at_utc": "2026-11-13T06:31:06.472512+00:00"
+      }
+    ],
+    "open_meteo": [
+      {
+        "url": "https://api.open-meteo.com/v1/forecast?latitude=54.0&longitude=6.6&hourly=wind_speed_100m%2Cwind_direction_100m%2Cwind_gusts_10m%2Ctemperature_2m%2Cshortwave_radiation%2Cdirect_radiation%2Ccloud_cover%2Csurface_pressure&forecast_days=3&timezone=UTC&wind_speed_unit=ms&temperature_unit=celsius&precipitation_unit=mm",
+        "sha256": "7cd9deee147e447bc0f5dc52971ae1a09fc1b2c6aefb273d179a2296e5077fa9",
+        "n_bytes": 4781,
+        "fetched_at_utc": "2026-11-13T06:38:56.033755+00:00"
+      },
+      {
+        "url": "https://api.open-meteo.com/v1/forecast?latitude=51.31&longitude=9.49&hourly=wind_speed_100m%2Cwind_direction_100m%2Cwind_gusts_10m%2Ctemperature_2m%2Cshortwave_radiation%2Cdirect_radiation%2Ccloud_cover%2Csurface_pressure&forecast_days=3&timezone=UTC&wind_speed_unit=ms&temperature_unit=celsius&precipitation_unit=mm",
+        "sha256": "fb958e88aaf683f388bbc4f1b84b735ccccb1d169b3a253637a40a44a6a2fd39",
+        "n_bytes": 4596,
+        "fetched_at_utc": "2026-11-13T06:38:56.165650+00:00"
+      },
+      {
+        "url": "https://api.open-meteo.com/v1/forecast?latitude=50.94&longitude=6.96&hourly=wind_speed_100m%2Cwind_direction_100m%2Cwind_gusts_10m%2Ctemperature_2m%2Cshortwave_radiation%2Cdirect_radiation%2Ccloud_cover%2Csurface_pressure&forecast_days=3&timezone=UTC&wind_speed_unit=ms&temperature_unit=celsius&precipitation_unit=mm",
+        "sha256": "f4c0447e7e9e9f4fca547b5c2d4a456412a49ced8f173fd9d18dc32ba9dfcacf",
+        "n_bytes": 4605,
+        "fetched_at_utc": "2026-11-13T06:38:56.369467+00:00"
+      },
+      {
+        "url": "https://api.open-meteo.com/v1/forecast?latitude=48.14&longitude=11.58&hourly=wind_speed_100m%2Cwind_direction_100m%2Cwind_gusts_10m%2Ctemperature_2m%2Cshortwave_radiation%2Cdirect_radiation%2Ccloud_cover%2Csurface_pressure&forecast_days=3&timezone=UTC&wind_speed_unit=ms&temperature_unit=celsius&precipitation_unit=mm",
+        "sha256": "c82166482a6cce111238e9c434671a6a28d1e106d555988c541716895650511f",
+        "n_bytes": 4555,
+        "fetched_at_utc": "2026-11-13T06:38:56.501356+00:00"
+      },
+      {
+        "url": "https://api.open-meteo.com/v1/forecast?latitude=48.0&longitude=7.85&hourly=wind_speed_100m%2Cwind_direction_100m%2Cwind_gusts_10m%2Ctemperature_2m%2Cshortwave_radiation%2Cdirect_radiation%2Ccloud_cover%2Csurface_pressure&forecast_days=3&timezone=UTC&wind_speed_unit=ms&temperature_unit=celsius&precipitation_unit=mm",
+        "sha256": "e16a0329ec39606bae00e41522cbc79366a718656a36d72fba4f6e5171f8cd85",
+        "n_bytes": 4531,
+        "fetched_at_utc": "2026-11-13T06:38:56.630863+00:00"
+      }
+    ]
+  },
+  "disclaimer": "Forecast only. No tradeable edge is claimed and no P&L is implied. See PREREGISTRATION.md for the calls being made and what counts as a null."
+}
