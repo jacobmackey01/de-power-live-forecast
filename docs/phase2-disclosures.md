@@ -11,6 +11,12 @@ further than their evidence. Everything below that could be fixed without
 touching a frozen file was fixed on 2026-11-13, before any v2 day had been
 scored. What could not be fixed is stated.
 
+The same auditor reviewed those fixes that morning and found three of them
+incomplete: a missing hour of weather was still accepted, a forecast was not
+proved to have been public before its gate, and the warning about the error
+pool did not notice an outage. All three were completed the same day, also
+before any v2 day had been scored. Section 6 says which.
+
 ## 1. The first forecast was built twice
 
 - At 09:42:23 UTC on 12 November, [run 43193733116](https://github.com/jacobmackey01/de-power-live-forecast/actions/runs/43193733116)
@@ -67,7 +73,8 @@ forecast uses only the forecast available at its seal.
 - **The error pool** is counted the same way: 24 values per day.
 - **Fewer than 28 days.** The frozen code will set a threshold from as few as
   21 complete days. Since 13 November a forecast is refused if any hour of
-  prices is missing in the last 30 days, so this cannot now be reached.
+  prices is missing in the last 30 days, or if the prices do not reach back 30
+  days, so this cannot now be reached.
 - **A missing 02:00.** The frozen code fills a missing 02:00 from 01:00 and
   03:00 on any day, not only a 23-hour one. The same refusal makes this
   unreachable on an ordinary day.
@@ -82,7 +89,10 @@ cannot recover by itself because it has no new errors to recover with.
 This is a property of the frozen rule. It will not be worked around by
 backfilling forecasts or topping up the pool. If it happens, phase 2 ends
 there and the remaining days are MISSED. The audit job warns when the pool
-falls below 336 errors.
+falls below 336 errors, and says so plainly below 200. It counts the pool for
+the next forecast due, as of the time it runs. At first it read the count from
+the newest sealed file, which stops changing when sealing stops: the follow-up
+review took the pool to 192 that way with no warning.
 
 ## 6. What changed on 13 November, before any v2 day was scored
 
@@ -109,10 +119,19 @@ None of these touches a frozen file. Each has a test in
 **In sealing**
 
 - The gate is checked again when the forecast is finished, and before every
-  push. A forecast finished less than five minutes before the gate is refused.
-  This is stricter than the pre-registration requires.
+  push. A forecast finished less than five minutes before the gate is refused,
+  and a push is not started with less than two minutes left. This is stricter
+  than the pre-registration requires. After a push the gate is checked once
+  more, and a forecast that arrived late fails the job as LATE.
 - A forecast is refused if any hour of prices is missing in the last 30 days,
-  if any weather site fails, or if any model input is missing.
+  if any weather site fails, if any hour of weather is missing for the seal day
+  or the delivery day, or if any model input is missing. The weather is checked
+  as it arrives, hour by hour in UTC. The first version of this check looked at
+  the finished model inputs, by which point the frozen code had already filled
+  a missing 02:00 from the hours either side: the follow-up review deleted that
+  hour from an ordinary day and a forecast was still built.
+- Forecasts sealed from the merge of these changes carry a `weather_check`
+  entry. The forecasts for 13 and 14 November were sealed before it and do not.
 - The gate on a clock-change day is now noon on the wall clock. It was twelve
   elapsed hours after local midnight, which is an hour early on a 25-hour day
   and an hour late on a 23-hour day. As a result v1's sealed file for
@@ -130,8 +149,11 @@ None of these touches a frozen file. Each has a test in
 - An audit of the v2 record runs after every job that writes to it. Every
   scored row must repeat its sealed forecast exactly. Every sealed file must
   hold exactly the hours of its delivery day, once each, sealed before its own
-  gate by the frozen model, and must have entered the repository before its
-  gate.
+  gate by the frozen model, and must have been received by GitHub before its
+  gate. That last check uses GitHub's own record of when it received each push
+  to `main`, not the time written in the commit. A forecast received at or
+  after its gate is reported as LATE. A forecast with no push on record is
+  reported as not proved. See section 7.
 - The margin alarm now fails if the newest forecast is not for the day that
   was due. Before, a model that had stopped sealing kept passing.
 
@@ -141,9 +163,17 @@ None of these touches a frozen file. Each has a test in
   rule, so the repository owner can push to it directly. The checks would show
   a violation afterwards. They cannot stop one, and the owner could change or
   disable them.
-- **Timestamps inside a file are the file's own claim.** The independent
-  evidence of when a forecast existed is the time of the GitHub Actions run
-  that built it and the commit that published it.
+- **Timestamps inside a file are the file's own claim, and so is the time in
+  a commit.** A commit's time is set by the machine that made it, and a commit
+  made before the gate can be pushed after it. The independent evidence of
+  when a forecast became public is GitHub's record of when it received the
+  push, which anyone can read from the repository's activity page or API, and
+  the time of the GitHub Actions run that built it. The audit reads the push
+  record on every run. That record is GitHub's to keep: it currently goes back
+  to the day the repository was created, and if it ever stops covering a
+  forecast the audit will say that forecast is not proved, not that it passed.
+  For the first forecast it shows the push received at 09:46:31 UTC on 12
+  November, 73 minutes before the gate.
 - **Input hashes cannot be checked from this repository.** Each sealed file
   records a hash of every response it used. The responses themselves are not
   kept, so nobody can re-inspect what the model saw.

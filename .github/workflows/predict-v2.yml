@@ -60,6 +60,10 @@ env:
   # manual one) records a miss while the gate is still open.
   LAST_SCHEDULED_CRON: "22 2 * * *"
   GATE_LOCAL: "12:00"
+  # A push must start with more than this long left before the gate. The
+  # forecast itself must be finished five minutes before it (PUBLISH_BUFFER in
+  # v2/predict.py), which leaves three minutes for the steps and retries between.
+  PUSH_BUFFER_MINUTES: "2"
 
 jobs:
   seal:
@@ -225,7 +229,14 @@ jobs:
           # see it. So the gate is asked again here, and before every push. A
           # forecast that cannot be published in time is not published at all;
           # the scoring job then records the day as MISSED.
-          if [ "$SEAL_OUTCOME" = "success" ] && ! python -m de_power_live.v2.gate "$TARGET"; then
+          #
+          # Before a push the gate must be more than PUSH_BUFFER_MINUTES away: a
+          # push that starts a second before the gate does not finish before
+          # it. After the push it is asked once more, with no margin. GitHub
+          # records when it received each push, and the audit reads that
+          # record, so the answer here is a first report and not the proof.
+          if [ "$SEAL_OUTCOME" = "success" ] \
+              && ! python -m de_power_live.v2.gate "$TARGET" --need-minutes "$PUSH_BUFFER_MINUTES"; then
             echo "::error::The forecast for $TARGET was built before the gate but cannot be published before it. Not publishing."
             exit 1
           fi
@@ -251,11 +262,19 @@ jobs:
           # scoring job also appends to; .gitattributes merges that file by
           # union, so two appended lines both survive a rebase.
           for attempt in 1 2 3 4; do
-            if [ "$SEAL_OUTCOME" = "success" ] && ! python -m de_power_live.v2.gate "$TARGET"; then
-              echo "::error::The gate for $TARGET closed before the forecast could be pushed. Not publishing."
+            if [ "$SEAL_OUTCOME" = "success" ] \
+                && ! python -m de_power_live.v2.gate "$TARGET" --need-minutes "$PUSH_BUFFER_MINUTES"; then
+              echo "::error::Too close to the gate for $TARGET to push the forecast before it. Not publishing."
               exit 1
             fi
             if git push; then
+              if [ "$SEAL_OUTCOME" = "success" ]; then
+                if ! python -m de_power_live.v2.gate "$TARGET"; then
+                  echo "::error::The forecast for $TARGET reached GitHub after its gate. It is public but LATE: it is not a valid forecast, and the audit will report it."
+                  exit 1
+                fi
+                echo "Pushed $(git rev-parse HEAD) at $(date -u +%Y-%m-%dT%H:%M:%SZ), before the gate."
+              fi
               exit 0
             fi
             echo "Push rejected; rebasing onto the latest main and retrying."

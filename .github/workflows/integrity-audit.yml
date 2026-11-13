@@ -120,10 +120,27 @@ jobs:
       # its sealed forecast exactly, no day may appear twice, every due day
       # must have a forecast or a MISSED row, and no forecast may have entered
       # the repository after its gate. Stdlib only, like the step above.
+      #
+      # A commit's own time says when it was made, not when it was pushed, so
+      # it cannot prove a forecast was public before its gate. GitHub's record
+      # of when it received each push to main can. It is fetched read-only; if
+      # it cannot be fetched the audit says that check was not made.
       - name: The phase-2 record follows from its sealed forecasts
         id: v2content
         if: always()
-        run: PYTHONPATH=src python -m de_power_live.v2.audit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          PUSHES="$RUNNER_TEMP/pushes.jsonl"
+          if gh api --paginate "repos/$REPO/activity?ref=refs/heads/main&per_page=100" \
+              --jq '.[] | {type: .activity_type, timestamp, after}' > "$PUSHES"; then
+            echo "Read $(wc -l < "$PUSHES") push record(s) for main from GitHub."
+            PYTHONPATH=src python -m de_power_live.v2.audit --pushes "$PUSHES"
+          else
+            echo "::warning::Could not read the push record from GitHub."
+            PYTHONPATH=src python -m de_power_live.v2.audit
+          fi
 
       # Values reach bash through env, never through ${{ }} interpolation into
       # the script body, and every format string is single-quoted so a backtick

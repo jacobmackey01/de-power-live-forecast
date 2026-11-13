@@ -16,10 +16,14 @@ import time
 import urllib.parse
 from dataclasses import dataclass
 
+import numpy as np
 import pandas as pd
 
+from .. import MARKET_TZ
+from ..dataset import target_hours_for
 from ..smard import SmardClient
 from ..weather import API_URL, HOURLY_VARS, UNIT_PARAMS, OpenMeteoClient, Site
+from .features import WEATHER_COLS
 
 # Enough history for the 14-day lags, the 7-day scale and the 28-day windows.
 SMARD_BLOCKS = 9
@@ -82,6 +86,14 @@ def check_prices(prices: pd.Series) -> dict:
     low, high = float(prices.min()), float(prices.max())
     if low < PRICE_BOUNDS[0] or high > PRICE_BOUNDS[1]:
         raise InputError(f"day-ahead prices span [{low}, {high}], outside {PRICE_BOUNDS}")
+    span = prices.index.max() - prices.index.min()
+    if span < pd.Timedelta(days=RECENT_DAYS):
+        # A short series has no hole in it and would pass the check below, with
+        # 28-day windows it cannot fill. The frozen rules would carry on from as
+        # few as 21 days; this refuses before they are asked.
+        raise InputError(
+            f"day-ahead prices reach back only {span.days} days; {RECENT_DAYS} are needed"
+        )
     recent = prices[prices.index >= prices.index.max() - pd.Timedelta(days=RECENT_DAYS)]
     expected = pd.date_range(recent.index.min(), recent.index.max(), freq="h")
     absent = expected.difference(recent.index)
@@ -103,6 +115,46 @@ def check_prices(prices: pd.Series) -> dict:
         "max": high,
         "missing_hours_recent": missing,
         "recent_days_checked": RECENT_DAYS,
+        "ok": True,
+    }
+
+
+def check_weather(weather: pd.DataFrame, target_day: pd.Timestamp) -> dict:
+    """Refuse weather that does not cover every hour of the seal day and the target day.
+
+    The model reads the forecast for both days. This looks at the hours as they
+    arrived, in UTC, where no day has a gap: a 23-hour day is 23 real hours and
+    a 25-hour day 25. It has to run on the raw frame, before the features are
+    built, because the feature grid fills a missing 02:00 from the hours either
+    side of it on any day, and a check made afterwards finds nothing missing.
+    """
+    target = pd.Timestamp(target_day).normalize()
+    seal_day = target - pd.Timedelta(days=1)
+    absent_columns = [col for col in WEATHER_COLS if col not in weather.columns]
+    if absent_columns:
+        raise InputError(f"weather has no column(s) {absent_columns}")
+    if weather.index.has_duplicates:
+        raise InputError("weather repeats an hour")
+    needed = target_hours_for(seal_day).append(target_hours_for(target))
+    absent = needed.difference(weather.index)
+    if len(absent):
+        raise InputError(
+            f"{len(absent)} hour(s) of weather are missing for {seal_day.date()} and {target.date()}, "
+            f"first at {absent[0].isoformat()}"
+        )
+    values = weather.loc[needed, list(WEATHER_COLS)].to_numpy(dtype=float)
+    bad = ~np.isfinite(values)
+    if bad.any():
+        row, col = np.argwhere(bad)[0]
+        raise InputError(
+            f"{int(bad.sum())} weather value(s) are missing for {seal_day.date()} and {target.date()}, "
+            f"first {WEATHER_COLS[col]} at {needed[row].isoformat()}"
+        )
+    return {
+        "first_utc": needed[0].isoformat(),
+        "last_utc": needed[-1].isoformat(),
+        "hours_checked": int(len(needed)),
+        "columns_checked": len(WEATHER_COLS),
         "ok": True,
     }
 
@@ -135,6 +187,10 @@ def fetch_live_inputs() -> LiveInputs:
         # frozen weights are part of the model, so v2 needs all of them.
         if coverage.get("sites_returned") != coverage.get("sites_requested"):
             raise InputError(f"weather returned for only some sites: {coverage.get('sites_failed')}")
+        # Checked inside the retry, so that a response with an hour missing is
+        # asked for again rather than given up on.
+        today = pd.Timestamp.now(tz=MARKET_TZ).normalize().tz_localize(None)
+        check_weather(drivers, today + pd.Timedelta(days=1))
         return client, drivers, coverage
 
     meteo, weather, coverage = _retry("Open-Meteo", forecast)

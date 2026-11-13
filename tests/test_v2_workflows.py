@@ -122,6 +122,13 @@ def _commit_script() -> str:
     return script
 
 
+def _push_buffer() -> str:
+    """PUSH_BUFFER_MINUTES as the workflow sets it for every step."""
+    match = re.search(r'^  PUSH_BUFFER_MINUTES: "(\d+)"$', _read("predict-v2.yml"), flags=re.M)
+    assert match, "predict-v2.yml must set PUSH_BUFFER_MINUTES"
+    return match.group(1)
+
+
 def _run_commit(cwd: Path, seal_outcome: str, target: date) -> subprocess.CompletedProcess:
     """Run the commit step as the workflow would, with `python` able to import the package."""
     src = Path(__file__).resolve().parents[1] / "src"
@@ -133,6 +140,7 @@ def _run_commit(cwd: Path, seal_outcome: str, target: date) -> subprocess.Comple
         "EVENT_NAME": "schedule",
         "RUN_ID": "1",
         "TARGET": target.isoformat(),
+        "PUSH_BUFFER_MINUTES": _push_buffer(),
     }
     return subprocess.run(["bash", "-e", "-c", _commit_script()], cwd=cwd, capture_output=True, text=True, env=env)
 
@@ -289,3 +297,29 @@ def test_the_alarm_input_never_reaches_the_script_as_text():
         assert "${{" not in block.split("- name:")[0]
     assert "--expect-current" in alarm
 
+
+def test_a_push_must_start_with_time_to_spare_and_is_checked_afterwards():
+    """Follow-up review, 2026-11-13: the gate check before a push passed with
+    one second left, and nothing looked at the clock once the push returned."""
+    script = _commit_script()
+    assert int(_push_buffer()) >= 2
+    guarded = 'python -m de_power_live.v2.gate "$TARGET" --need-minutes "$PUSH_BUFFER_MINUTES"'
+    # Once before the commit and once before each push attempt.
+    assert script.count(guarded) == 2
+    push = script.index("if git push; then")
+    assert script.rindex(guarded, 0, push) > script.index("for attempt in")
+    # After a push that succeeded, the gate is asked again with no margin.
+    after = script[push:]
+    assert 'python -m de_power_live.v2.gate "$TARGET"; then' in after
+    assert "LATE" in after
+
+
+def test_the_audit_is_given_githubs_record_of_pushes():
+    audit = _read("integrity-audit.yml")
+    step = audit[audit.index("- name: The phase-2 record follows from its sealed forecasts"):]
+    step = step[: step.index("\n      - name:", 10)]
+    assert "/activity?ref=refs/heads/main" in step
+    assert 'python -m de_power_live.v2.audit --pushes "$PUSHES"' in step
+    assert "GH_TOKEN: ${{ github.token }}" in step
+    # Read-only: the job's token cannot write, and the fetch is a GET.
+    assert "contents: read" in audit and "--method" not in step and "-X" not in step

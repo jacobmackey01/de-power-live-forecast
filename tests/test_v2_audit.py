@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import copy
 import json
+import subprocess
 from datetime import date, datetime, timedelta, timezone
 
 import numpy as np
@@ -18,9 +19,9 @@ import pytest
 
 from de_power_live import gate_margin
 from de_power_live.predict import SealError
-from de_power_live.v2 import FIRST_DELIVERY_DAY, PREDICTIONS_DIR, audit, final_report, score
+from de_power_live.v2 import FIRST_DELIVERY_DAY, PREDICTIONS_DIR, audit, final_report, gate, score
 from de_power_live.v2.audit import LedgerError, check_seal, gate_utc
-from de_power_live.v2.inputs import InputError, check_prices
+from de_power_live.v2.inputs import InputError, check_prices, check_weather
 from de_power_live.v2.predict import PUBLISH_BUFFER, build_prediction
 from de_power_live.v2.rehearse import inputs_as_of
 from de_power_live.v2.score import InvalidSeal, miss_entry, reconcile, score_day
@@ -178,6 +179,89 @@ def test_a_forecast_that_reached_the_repository_after_its_gate_is_reported(block
     assert audit.audit(**record, published=on_time)[0] == []
 
 
+def test_githubs_own_record_of_the_push_is_what_proves_publication(block, tmp_path):
+    """Follow-up review, 2026-11-13: a commit made before the gate and pushed
+    after it has an innocent commit time, and the audit passed it. The time
+    GitHub received the push is evidence; the commit time is a claim."""
+    record = _record(block, tmp_path)
+    gate_20 = gate_utc(date(2026, 10, 20))
+    innocent = {"2026-10-20": gate_20 - timedelta(minutes=10)}  # committed in time
+    early = {day.stem: gate_utc(date.fromisoformat(day.stem)) - timedelta(hours=3)
+             for day in record["predictions_dir"].glob("*.json")}
+
+    assert audit.audit(**record, published=innocent, received=early) == ([], [])
+
+    late = {**early, "2026-10-20": gate_20 + timedelta(seconds=1)}  # pushed late
+    problems, _ = audit.audit(**record, published=innocent, received=late)
+    assert len(problems) == 1 and "2026-10-20: GitHub received the sealed file" in problems[0]
+    assert "LATE" in problems[0]
+
+    unproven = {**early, "2026-10-20": None}  # no push on record
+    problems, warnings = audit.audit(**record, published=innocent, received=unproven)
+    assert problems == []
+    assert len(warnings) == 1 and "2026-10-20" in warnings[0] and "not proved" in warnings[0]
+
+
+def test_each_forecast_is_matched_to_the_first_push_that_held_it(tmp_path):
+    def git(*args):
+        return subprocess.run(["git", *args], cwd=tmp_path, check=True, capture_output=True, text=True).stdout.strip()
+
+    git("init", "-q")
+    git("config", "user.name", "t")
+    git("config", "user.email", "t@example.invalid")
+    predictions = tmp_path / "predictions"
+    predictions.mkdir()
+    heads = []
+    for name in ("2026-11-13.json", "2026-11-14.json", "2026-11-15.json"):
+        (predictions / name).write_text("{}")
+        git("add", ".")
+        git("commit", "-q", "-m", name)
+        heads.append(git("rev-parse", "HEAD"))
+
+    pushes = tmp_path / "pushes.jsonl"
+    t = "2026-11-12T09:46:31Z"
+    pushes.write_text(
+        # Newest first, as the API returns them, with a branch deletion mixed in.
+        json.dumps({"type": "branch_deletion", "timestamp": "2026-11-16T00:00:00Z", "after": "0" * 40}) + "\n"
+        + json.dumps({"type": "push", "timestamp": "2026-11-13T06:41:00Z", "after": heads[1]}) + "\n"
+        + json.dumps({"type": "push", "timestamp": t, "after": heads[0]}) + "\n"
+    )
+    received = audit.received_times(predictions, audit.read_pushes(pushes), repo=tmp_path)
+    assert received["2026-11-13"] == datetime(2026, 11, 12, 9, 46, 31, tzinfo=timezone.utc)
+    assert received["2026-11-14"] == datetime(2026, 11, 13, 6, 41, tzinfo=timezone.utc)
+    assert received["2026-11-15"] is None  # committed, never pushed
+
+    # A forecast that arrived underneath a later commit takes that push's time.
+    pushes.write_text(json.dumps({"type": "push", "timestamp": "2026-11-13T06:41:00Z", "after": heads[1]}) + "\n")
+    received = audit.received_times(predictions, audit.read_pushes(pushes), repo=tmp_path)
+    assert received["2026-11-13"] == datetime(2026, 11, 13, 6, 41, tzinfo=timezone.utc)
+
+
+def test_the_first_live_forecast_is_matched_to_its_push():
+    """The real record: 82d4f1e, received by GitHub at 09:46:31 UTC on 12 November."""
+    commits = audit._added_in(PREDICTIONS_DIR, audit.REPO_ROOT, "%H")
+    if not commits or not commits.get("2026-11-13", "").startswith("82d4f1e"):
+        pytest.skip("not a full clone of the live repository")
+    stamp = datetime(2026, 11, 12, 9, 46, 31, tzinfo=timezone.utc)
+    received = audit.received_times(PREDICTIONS_DIR, [(stamp, commits["2026-11-13"])])
+    assert received["2026-11-13"] == stamp < gate_utc(date(2026, 11, 13))
+
+
+def test_a_push_needs_more_than_a_second_before_the_gate():
+    """Follow-up review: with one second left the gate check said yes, and the
+    push it allowed could not have finished in time."""
+    day = date(2026, 12, 1)
+    close = gate_utc(day)
+    one_second = close - timedelta(seconds=1)
+    assert gate.is_open(day, now=one_second)  # the gate itself is open
+    assert not gate.is_open(day, need_minutes=2, now=one_second)  # but not for a push
+    assert not gate.is_open(day, need_minutes=2, now=close - timedelta(minutes=2))
+    assert gate.is_open(day, need_minutes=2, now=close - timedelta(minutes=2, seconds=1))
+    assert not gate.is_open(day, now=close)
+    assert gate.main(["2026-12-01", "--need-minutes", "-1"]) == 2
+    assert gate.main(["not-a-date"]) == 2
+
+
 # ---- Finding 2: the gate at the moment of sealing --------------------------------
 
 
@@ -295,16 +379,40 @@ def test_the_audit_reports_a_day_missing_from_the_record(block, tmp_path):
 
 def test_the_audit_warns_before_the_error_pool_runs_dry(block, tmp_path):
     """Below 200 recent errors the model refuses to seal, and it cannot get new
-    errors without sealing. The warning has to come while there is time."""
-    record = _record(block, tmp_path)
-    newest = record["predictions_dir"] / "2026-10-27.json"
-    payload = json.loads(newest.read_text())
-    payload["error_pool"]["n_errors"] = 300
-    newest.write_text(json.dumps(payload))
-    ledger = copy.deepcopy(block["ledger"])
-    _, warnings = audit.audit(**{**record, "ledger_path": record["ledger_path"]})
-    assert any("only 300 recent forecast errors" in w for w in warnings)
-    assert ledger  # unchanged
+    errors without sealing. The warning has to come while there is time.
+
+    The follow-up review of 2026-11-13 stopped sealing and moved the clock on,
+    and no warning came: the count was read from the newest sealed file, which
+    is as old as that file. It is now counted for the next forecast due."""
+    record = _record(block, tmp_path)  # sealed 14 to 27 October, then nothing
+
+    def pool_warnings(now):
+        _, warnings = audit.audit(**{**record, "now": now})
+        return [w for w in warnings if "recent forecast errors" in w]
+
+    # Still sealing: 14 live days and the warm start before them.
+    assert pool_warnings(record["now"]) == []
+    # Two weeks after the last seal, 13 of the sealed days are still in the window.
+    low = pool_warnings(datetime(2026, 11, 11, 12, 0, tzinfo=timezone.utc))
+    assert len(low) == 1 and "2026-11-12 would have only 313" in low[0]
+    # Three weeks after it, six are: 145 errors, and v2 can no longer seal.
+    dry = pool_warnings(datetime(2026, 11, 18, 12, 0, tzinfo=timezone.utc))
+    assert len(dry) == 1 and "2026-11-19 would have 145" in dry[0] and "refuses to seal" in dry[0]
+
+
+def test_the_pool_count_is_the_frozen_rules_count(history, block):
+    """The audit counts without pandas. It must count what the frozen rule counts."""
+    from de_power_live.v2.calls import error_pool
+    from de_power_live.v2.model import load_warm_start
+    from de_power_live.v2.predict import live_errors
+
+    prices, _ = history
+    payloads = {path.stem: json.loads(path.read_text()) for path in block["work_dir"].glob("*.json")}
+    warm = json.loads((block["model_dir"] / "warm_start.json").read_text())["scaled_errors"]
+    for day in ("2026-10-20", "2026-10-28", "2026-11-05"):
+        target = pd.Timestamp(day)
+        _, report = error_pool(target, live_errors(block["work_dir"], prices, target), load_warm_start(block["model_dir"]))
+        assert audit.eligible_errors(target.date(), payloads, warm) == report["n_errors"]
 
 
 def test_the_alarm_notices_a_model_that_has_stopped_sealing():
@@ -367,8 +475,61 @@ def test_a_seal_is_refused_when_the_seal_days_weather_is_missing(history, block)
     inputs = inputs_as_of(prices, weather, now)
     seal_day = inputs.weather.index.tz_convert(TZ).normalize().tz_localize(None) == pd.Timestamp("2026-10-27")
     inputs.weather = inputs.weather[~seal_day]
-    with pytest.raises(SealError, match="model input"):
+    with pytest.raises(SealError, match="weather forecast is not complete: 24 hour"):
         build_prediction(inputs, now, block["model_dir"], block["work_dir"], sealed_at_utc=now)
+
+
+@pytest.mark.parametrize("day", ["2026-10-27", "2026-10-28"])  # the seal day, the target day
+def test_a_seal_is_refused_when_one_ordinary_hour_of_weather_is_missing(history, block, day):
+    """Follow-up review, 2026-11-13: the reviewer deleted 02:00 from an
+    ordinary day's weather and a forecast was still sealed. The check on the
+    finished model inputs ran after the feature grid had filled the gap from
+    01:00 and 03:00, so it found nothing missing."""
+    prices, weather = history
+    now = pd.Timestamp("2026-10-27 07:40", tz=TZ).tz_convert("UTC")
+    hole = pd.Timestamp(f"{day} 02:00", tz=TZ).tz_convert("UTC")
+
+    complete = inputs_as_of(prices, weather, now)
+    payload = build_prediction(complete, now, block["model_dir"], block["work_dir"], sealed_at_utc=now)
+    assert payload["weather_check"] == {
+        "first_utc": "2026-10-26T23:00:00+00:00", "last_utc": "2026-10-28T22:00:00+00:00",
+        "hours_checked": 48, "columns_checked": 10, "ok": True,
+    }
+
+    dropped = inputs_as_of(prices, weather, now)
+    dropped.weather = dropped.weather.drop(hole)
+    with pytest.raises(SealError, match=r"weather forecast is not complete: 1 hour\(s\) of weather are missing"):
+        build_prediction(dropped, now, block["model_dir"], block["work_dir"], sealed_at_utc=now)
+
+    blank = inputs_as_of(prices, weather, now)
+    blank.weather = blank.weather.copy()
+    blank.weather.loc[hole, "temperature"] = np.nan
+    with pytest.raises(SealError, match="1 weather value.*temperature"):
+        build_prediction(blank, now, block["model_dir"], block["work_dir"], sealed_at_utc=now)
+
+
+def test_the_weather_check_counts_real_hours_on_a_clock_change_day(history):
+    """A 23-hour day has no 02:00 and a 25-hour day has two. Neither is a gap."""
+    _, weather = history
+    assert check_weather(weather, pd.Timestamp("2026-10-25"))["hours_checked"] == 24 + 25
+    assert check_weather(weather, pd.Timestamp("2026-10-26"))["hours_checked"] == 25 + 24
+    assert check_weather(weather, pd.Timestamp("2027-03-28"))["hours_checked"] == 24 + 23
+    # One of the two 02:00s of the 25-hour day missing is a gap all the same.
+    second_0200 = pd.Timestamp("2026-10-25 01:00", tz="UTC")
+    with pytest.raises(InputError, match="1 hour"):
+        check_weather(weather.drop(second_0200), pd.Timestamp("2026-10-25"))
+    with pytest.raises(InputError, match="repeats an hour"):
+        check_weather(pd.concat([weather, weather.iloc[-1:]]), pd.Timestamp("2026-10-25"))
+    with pytest.raises(InputError, match="no column"):
+        check_weather(weather.drop(columns=["cloud_cover"]), pd.Timestamp("2026-10-25"))
+
+
+def test_a_price_history_too_short_for_its_windows_is_refused():
+    """Follow-up review: 21 unbroken days of prices passed, with a report that
+    said 30 days had been checked. The frozen rules would carry on from 21."""
+    with pytest.raises(InputError, match="reach back only 20 days"):
+        check_prices(_hourly("2026-10-01", 24 * 21))
+    assert check_prices(_hourly("2026-10-01", 24 * 30 + 1))["ok"] is True
 
 
 # ---- Finding 10: what the report promises regardless --------------------------------
