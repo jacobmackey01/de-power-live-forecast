@@ -2,16 +2,17 @@
 
 Evaluation window **2026-11-13 to 2027-02-28**, judged against the criteria frozen in [`PREREGISTRATION_PHASE2.md`](../../PREREGISTRATION_PHASE2.md) before the first v2 prediction. Computed by `python -m de_power_live.v2.final_report` from [`ledger.jsonl`](ledger.jsonl) alone.
 
-**Provisional.** 98 window day(s) are not yet scored. The numbers below are the record so far, on the final report's own definitions; no verdict is final until the window closes.
+**Provisional.** 97 window day(s) are not yet scored. The numbers below are the record so far, on the final report's own definitions; no verdict is final until the window closes.
 
 ## The record
 
 - Calendar days in the window: **108**
 - Scored: **7** days, 168 hours
-- Missed: **3** (2026-11-21, 2026-11-22, 2026-11-23)
+- Missed: **4** (2026-11-21, 2026-11-22, 2026-11-23, 2026-11-24)
   - 2026-11-21: predict-v2 job failed in run 44716634213: de_power_live.v2.features.LeakageError: newest price is for 2026-11-19, but the seal day 2026-11-20 cleared yesterday and is the anchor of every forecast
   - 2026-11-22: predict-v2 job failed in run 44891900663: de_power_live.v2.features.LeakageError: newest price is for 2026-11-19, but the seal day 2026-11-21 cleared yesterday and is the anchor of every forecast
   - 2026-11-23: predict-v2 job failed in run 45009722842: de_power_live.v2.inputs.InputError: 48 hour(s) of day-ahead prices are missing in the last 30 days, first at 2026-11-19T23:00:00+00:00
+  - 2026-11-24: predict-v2 job failed in run 45160154543: de_power_live.v2.inputs.InputError: 48 hour(s) of day-ahead prices are missing in the last 30 days, first at 2026-11-19T23:00:00+00:00
 - Seal margin before gate closure: minimum 74 min, median 256 min
 - Model version(s): `v2` (source `942c4edc75b2`)
 - Bootstrap: 10,000 draws, block = one power day, seed 20270303
