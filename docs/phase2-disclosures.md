@@ -222,4 +222,7 @@ with ties rounded away from zero. The seal records the filled UTC hours,
 the number of overlapping hours checked, and the URL, time, size and
 SHA-256 of the raw response. The complete-history check and information
 cutoff still apply to the combined series. Scoring continues to use the
-direct SMARD feed. Earlier ledger entries and forecasts are preserved.
+direct SMARD feed. The interval error pool, however, is computed at each seal
+from the combined series, so a sealed day whose actual prices SMARD lacks
+(the first is 20 November) enters the pool with mirror prices as its actuals.
+Earlier ledger entries and forecasts are preserved.
