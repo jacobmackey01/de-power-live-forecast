@@ -202,3 +202,24 @@ the same bytes, which is a narrower claim than "anyone can rebuild it".
   10,000 used for the three verdicts; the report's JSON says how many.
 - The addendum on the 23-hour day 2027-03-28, promised in section 6 of the
   pre-registration, is not automated. It has to be written by hand.
+
+
+## 10. Backup access to SMARD auction prices
+
+The direct SMARD feed omitted DE-LU day-ahead prices for 20, 21, 24 and
+25 November 2026 when checked on 25 November. The seal refused to publish
+with gaps in its price history. Fraunhofer ISE's [Energy-Charts API](https://api.energy-charts.info/)
+returned those quarter-hour prices and identified SMARD as the source.
+In the overlap we checked, all 2,692 quarter-hour prices matched SMARD
+exactly. The mean of each set of four quarters was within EUR 0.005/MWh
+of the corresponding SMARD hourly price across 673 hours.
+
+The v2 forecast uses the direct SMARD value wherever available. When the
+required history has a gap, it checks the mirror's hourly means against
+overlapping SMARD hours before filling any missing hour. Each fill needs
+four distinct quarter-hour prices and is rounded to the nearest cent,
+with ties rounded away from zero. The seal records the filled UTC hours,
+the number of overlapping hours checked, and the URL, time, size and
+SHA-256 of the raw response. The complete-history check and information
+cutoff still apply to the combined series. Scoring continues to use the
+direct SMARD feed. Earlier ledger entries and forecasts are preserved.
