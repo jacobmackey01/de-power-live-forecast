@@ -9,6 +9,8 @@ turned round: each must now fail to do the damage.
 from __future__ import annotations
 
 import copy
+import hashlib
+import io
 import json
 import subprocess
 from datetime import date, datetime, timedelta, timezone
@@ -21,6 +23,7 @@ from de_power_live import gate_margin
 from de_power_live.predict import SealError
 from de_power_live.v2 import FIRST_DELIVERY_DAY, PREDICTIONS_DIR, audit, final_report, gate, score
 from de_power_live.v2.audit import LedgerError, check_seal, gate_utc
+from de_power_live.v2 import inputs as v2_inputs
 from de_power_live.v2.inputs import InputError, check_prices, check_weather
 from de_power_live.v2.predict import PUBLISH_BUFFER, build_prediction
 from de_power_live.v2.rehearse import inputs_as_of
@@ -454,6 +457,76 @@ def test_a_hole_in_the_price_history_is_refused():
         check_prices(pd.concat([prices, prices.iloc[-5:-4]]).sort_index())
     with pytest.raises(InputError, match="outside"):
         check_prices(prices.where(prices.index != prices.index[10], 9999.0))
+
+
+@pytest.fixture
+def mirror_prices(monkeypatch):
+    # Span the fall clock change, including both local 02:00 hours.
+    last_hour = pd.Timestamp("2026-11-03 22:00", tz="UTC")
+    hours = pd.date_range(end=last_hour, periods=721, freq="h")
+    quarters = pd.date_range(hours[0], last_hour + pd.Timedelta(minutes=45), freq="15min")
+    payload = {
+        "unit": "EUR / MWh",
+        "license_info": "CC BY 4.0 from Bundesnetzagentur | SMARD.de",
+        "unix_seconds": [int(quarter.timestamp()) for quarter in quarters],
+        "price": [39.31, 39.31, 39.32, 39.32] * len(hours),
+    }
+    requests = []
+
+    def urlopen(request, *, timeout):
+        requests.append(request.full_url)
+        return io.BytesIO(json.dumps(payload).encode())
+
+    monkeypatch.setattr(v2_inputs.urllib.request, "urlopen", urlopen)
+    return pd.Series(39.31, index=hours), pd.Timestamp("2026-11-03"), payload, requests
+
+
+def test_mirror_fills_only_missing_hours_and_records_the_original_payload(mirror_prices):
+    prices, day, raw, requests = mirror_prices
+    absent = prices.index[[0, -1]].append(
+        pd.DatetimeIndex(["2026-10-25T00:00:00Z", "2026-10-25T01:00:00Z"])
+    ).sort_values()
+    primary = prices.drop(absent)
+    complete, provenance = v2_inputs._fill_missing_prices(primary, day)
+    pd.testing.assert_series_equal(complete.loc[primary.index], primary)
+    assert complete.loc[absent].tolist() == [39.32] * len(absent)
+    assert check_prices(complete)["ok"]
+    assert provenance["filled_hours_utc"] == [hour.isoformat() for hour in absent]
+    assert provenance["overlap_hours_checked"] == len(primary)
+    assert provenance["response"]["sha256"] == hashlib.sha256(json.dumps(raw).encode()).hexdigest()
+    assert requests == ["https://api.energy-charts.info/price?bzn=DE-LU&start=2026-10-05&end=2026-11-03"]
+
+
+def test_complete_smard_history_does_not_query_the_mirror(mirror_prices):
+    prices, day, _, requests = mirror_prices
+    complete, provenance = v2_inputs._fill_missing_prices(prices, day)
+    assert complete is prices
+    assert provenance is None
+    assert requests == []
+
+
+@pytest.mark.parametrize(
+    "defect, message",
+    [
+        ("missing", "lacks four quarter-hour prices"),
+        ("disagreement", "could not be reconciled"),
+        ("duplicate", "repeated quarters"),
+        ("future", "post-cutoff"),
+    ],
+)
+def test_mirror_rejects_bad_replacement_data(mirror_prices, defect, message):
+    prices, day, raw, _ = mirror_prices
+    if defect == "missing":
+        raw["price"][-1] = None
+    elif defect == "disagreement":
+        raw["price"][0] += 1
+    elif defect == "duplicate":
+        raw["unix_seconds"][-1] = raw["unix_seconds"][-2]
+    else:
+        raw["unix_seconds"].append(raw["unix_seconds"][-1] + 900)
+        raw["price"].append(39.31)
+    with pytest.raises(InputError, match=message):
+        v2_inputs._fill_missing_prices(prices.iloc[:-1], day)
 
 
 def test_a_seal_is_refused_when_one_ordinary_hour_of_prices_is_missing(history, block):
