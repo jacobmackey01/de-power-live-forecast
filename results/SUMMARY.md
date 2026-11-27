@@ -2,10 +2,10 @@
 
 The evaluation window closed on 2026-10-31. The formal assessment against the pre-registered success criteria is in [FINAL_REPORT.md](FINAL_REPORT.md), written once every window day is scored or recorded missed.
 
-*Updated 2026-11-26T22:41:44+00:00*
+*Updated 2026-11-27T10:59:49+00:00*
 
 - Days scored: **103**
-- Days missed: **9** (2026-08-28, 2026-08-29, 2026-08-30, 2026-08-31, 2026-09-01, 2026-09-02, 2026-09-03, 2026-09-04, 2026-10-25)
+- Days missed: **10** (2026-08-28, 2026-08-29, 2026-08-30, 2026-08-31, 2026-09-01, 2026-09-02, 2026-09-03, 2026-09-04, 2026-10-25, 2026-11-28)
 
 ## Evaluation window (through 2026-10-31)
 
